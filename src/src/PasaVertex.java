@@ -4,7 +4,7 @@ import java.util.*;
 public class PasaVertex {
 
 	final PairPath pp;
-	int readSupport = 0;
+	float readSupport = 0;
 	
 	int vertex_score = 0;
 	
@@ -13,7 +13,9 @@ public class PasaVertex {
 	List<ScoredPath> fromPaths;
 	List<ScoredPath> toPaths;
 	
-	int num_contained = 0;
+	float num_contained = 0;
+	
+	boolean used = false;
 	
 	private Comparator<ScoredPath> sp_comparator = new Comparator<ScoredPath>() {
 		
@@ -39,20 +41,34 @@ public class PasaVertex {
 		
 		pp = p;
 		this.readSupport = readSupport;	
-		
+			
+	}
+	
+	
+	public void init_PasaVertex_to_and_from_paths() {
+		List<PairPath> path = new ArrayList<PairPath>();
+		path.add(this.pp);
 		
 		fromPaths = new ArrayList<ScoredPath>();
 		toPaths = new ArrayList<ScoredPath>();
 		
-		List<PairPath> path = new ArrayList<PairPath>();
-		path.add(p);
+		ScoredPath sp = new ScoredPath(path, this.num_contained + this.readSupport);
 		
-		ScoredPath sp = new ScoredPath(path, num_contained + 1);
+		this.fromPaths.add(sp);
+		this.toPaths.add(sp);
 		
-		fromPaths.add(sp);
-		toPaths.add(sp);
 	}
 	
+	public void set_used() {
+		used = true;
+		num_contained /= 1e6;
+		readSupport /= 1e6;
+	}
+	
+	
+	public boolean is_used() {
+			return(used);
+	}
 	
 	public final List<ScoredPath> get_toPaths () {
 		return(toPaths);

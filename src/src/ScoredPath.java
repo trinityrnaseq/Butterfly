@@ -5,10 +5,10 @@ public class ScoredPath {
 
 
 	List<PairPath> paths;
-	int score = 0;
+	float score = 0;
 	boolean path_extended = false;
 
-	public ScoredPath (List<PairPath> paths, int score) {
+	public ScoredPath (List<PairPath> paths, float score) {
 		this.paths = paths;
 		this.score = score;
 	}
