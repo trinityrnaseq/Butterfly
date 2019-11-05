@@ -2,6 +2,7 @@ import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.HashMap;
 import java.util.List;
+import java.util.function.IntFunction;
 
 import edu.uci.ics.jung.algorithms.shortestpath.DijkstraDistance;
 import edu.uci.ics.jung.algorithms.shortestpath.DijkstraDistanceWoVer;
@@ -77,7 +78,10 @@ public class PairPath {
 		return(_node_ids.contains(id));
 	}
 	
-	
+	public ArrayList<Integer> get_all_node_ids() {
+		return(new ArrayList<Integer>(this._node_ids));
+	}
+ 	
 	
 	@Override
 	public String toString() {

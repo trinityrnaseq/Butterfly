@@ -6180,6 +6180,7 @@ HashMap<List<Integer>, Pair<Integer>> transcripts = new HashMap<List<Integer>,Pa
 		// sort pairs according to node read depths
 		
 		Collections.sort(pairPathsSortedList, pairPathOrderComparer);
+		
 		if (BFLY_GLOBALS.VERBOSE_LEVEL >= 10) {
 			debugMes("SORTED PAIRPATHS IN ORDER:", 10);
 			for (PairPath p : pairPathsSortedList) {
@@ -6234,8 +6235,8 @@ HashMap<List<Integer>, Pair<Integer>> transcripts = new HashMap<List<Integer>,Pa
 		PairPath [] pairPathsContainmentsRemovedArr = pairPathsContainmentsRemoved.toArray(new PairPath[pairPathsContainmentsRemoved.size()]);
 		PasaVertex [] pasaVerticesContainmentsRemovedArr = pasaVerticesContainmentsRemoved.toArray(new PasaVertex[pasaVerticesContainmentsRemoved.size()]);
 		
-		//boolean[][] dag = getPairPathConsistencyDAG(graph, dijkstraDis, pairPathsContainmentsRemovedArr);
-		boolean[][] dag = getPairPathCompatibilityDAG(graph, dijkstraDis, pairPathsContainmentsRemovedArr);
+		boolean[][] dag = getPASA_PairPathConsistencyDAG(graph, dijkstraDis, pairPathsContainmentsRemovedArr);
+		//boolean[][] dag = getPairPathCompatibilityDAG(graph, dijkstraDis, pairPathsContainmentsRemovedArr);
 		
 		
 		if (BFLY_GLOBALS.VERBOSE_LEVEL >= 10) {
@@ -6847,11 +6848,14 @@ HashMap<List<Integer>, Pair<Integer>> transcripts = new HashMap<List<Integer>,Pa
 				if (! iJ.pp.haveAnyNodeInCommon(iV.pp))
 					continue;
 				
+				/*    older way of doing compatibility tests - need to reexamine carefully //TODO: 
 				boolean compatible = isOverlappingAndDirectionallyConsistent(iJ.pp, iV.pp, graph, dijkstraDis);
 				
 				if (! compatible) {
 					throw(new RuntimeException("Error, pp are supposed to be compatible according to dag[" + j + "," + i + "] , but are not:" + iJ.pp + ", " + iV.pp));
 				}
+				*/
+				
 				
 				// see if we can extend paths in iJ to include pairpath represented by iV
 				
@@ -7337,6 +7341,114 @@ HashMap<List<Integer>, Pair<Integer>> transcripts = new HashMap<List<Integer>,Pa
 		
 		
 	}
+	
+	private static boolean isPASA_CompatibleORdirectionallyConsistent(
+			PairPath pp1, 
+			PairPath pp2, 
+			DirectedSparseGraph<SeqVertex, SimpleEdge> graph,
+			DijkstraDistance<SeqVertex, SimpleEdge> dijkstraDis)
+	{
+		
+		// requirements for compatibility and directionally consistent:
+		// - pp1 must be topologically ordered before pp2
+		// - all shared internal nodes must have shared edges
+		// - all nodes from pp1 and pp2 should lie on a single valid directional path in the graph. 
+		// - pp1 and pp2 do not contain each other
+		
+		pp1 = pp1.trimSinkNodes();
+		pp2 = pp2.trimSinkNodes();
+		
+		debugMes("isPASA_CompatibleORdirectionallyConsistent? " + pp1 + pp2, 15);
+		
+		if (pp1.equals(pp2)) { 
+			
+			// problem...  pairpaths should be unique
+			throw( new RuntimeException("Error, comparing pairpaths: " + pp1 + " and " + pp2 + ", and they are identical... not allowed here."));
+			
+		}
+		
+		
+		// If have nodes in common, require compatibility in overlapping path parts:
+		
+		if(pp1.haveAnyNodeInCommon(pp2))
+		{
+			debugMes("\tHave nodes in common.", 15);
+			
+			if(!pp1.isCompatible(pp2))
+			{
+				debugMes("\tNot compatible.", 15);
+				return false;
+			}
+			
+			// DO NOT allow simple containments to be compatible
+			if (pp2.isCompatibleAndContainedByPairPath(pp1)) {
+				debugMes("\tpp2 isCompatibleAndContainedBy pp1, setting false (containments tackled separately later on).", 15);
+				return(false);
+			}
+			if (pp1.isCompatibleAndContainedByPairPath(pp2)) {
+				debugMes("\tpp1 isCompatibleAndContainedBy pp2, setting false (containments tackled separately later on).", 15);
+				return(false);
+			}
+			
+			
+		}
+		
+		// so far, so good.   Be sure that all vertices can lie on a single directional path within the graph 
+		
+		
+		HashSet<Integer> all_path_node_ids = new HashSet<Integer>(pp1.get_all_node_ids());
+		all_path_node_ids.addAll(pp2.get_all_node_ids());
+		
+		ArrayList<SeqVertex> all_path_vertices = new ArrayList<SeqVertex>();
+		for (Integer node_id : all_path_node_ids) {
+			SeqVertex pv = getSeqVertex(graph, node_id);
+			all_path_vertices.add(pv);
+		}
+		
+		Comparator<SeqVertex> NodeDepthOrderer = new Comparator<SeqVertex>() { // sort by first node depth in graph
+			public int compare(SeqVertex a, SeqVertex b) {
+				
+				int depthA = a._node_depth;
+				int depthB = b._node_depth;
+				
+				if (depthA < depthB) {
+					return(-1);
+				}
+				else if (depthA > depthB) {
+					return(1);
+				}
+				else {
+					return(0);
+				}
+			}
+		};
+		
+		Collections.sort(all_path_vertices, NodeDepthOrderer);
+		
+		for (int i = 0; i < all_path_vertices.size() -1; i++) {
+			SeqVertex before_vertex = all_path_vertices.get(i);
+			SeqVertex after_vertex = all_path_vertices.get(i+1);
+			
+			if (SeqVertex.isAncestral(before_vertex,after_vertex,dijkstraDis)>0) {
+				// all good, path exists from before -> after vertices
+			} else {
+				// problem... no direct path from before -> after
+				debugMes("path incompatibility detected between " + pp1 + " and " + pp2 +
+						", no path from " + before_vertex + " to " + after_vertex, 10); 
+				return(false);
+			}
+			
+		}
+		
+		
+		// if got this far, then afaict these paths are not incompatible.
+		
+		return(true);
+		
+			
+	}
+	
+	
 	
 	
 	private static boolean checkTransitivity(int[][] adj, PairPath[] pairPathArr, HashMap<PairPath,Integer> pairPathToIntVal)
@@ -7980,6 +8092,79 @@ HashMap<List<Integer>, Pair<Integer>> transcripts = new HashMap<List<Integer>,Pa
 		
 		return dag;
 	}
+	
+	private static boolean[][] getPASA_PairPathConsistencyDAG(
+			DirectedSparseGraph<SeqVertex, SimpleEdge> graph, 
+			DijkstraDistance<SeqVertex, SimpleEdge> dijkstraDis,
+			PairPath[] pairPathArr)
+	{
+		
+		debugMes("getPairPathDAG:", 10);
+		
+		boolean[][] dag = new boolean[pairPathArr.length][pairPathArr.length];
+		
+		for (boolean[] row : dag)
+		    Arrays.fill(row, false); // init to no connection.
+		
+		
+		// i -> j
+	
+		for (int i = 0; i < pairPathArr.length-1; i++)
+		{
+			
+			PairPath pp_i = pairPathArr[i];
+			
+			
+			boolean tooFar = false;
+			 
+			for (int j = i + 1; j < pairPathArr.length; j++)
+			{
+				
+				PairPath pp_j = pairPathArr[j];
+				
+				
+				 boolean compatible = isPASA_CompatibleORdirectionallyConsistent(pp_i, pp_j, graph, dijkstraDis);
+
+				 dag[i][j] =compatible;
+				 
+				
+				 if (twoPairPathsAreTooFarAwayInGraph(pp_i, pp_j, graph) && compatible) {
+					 debugMes("HOW CAN THESE BE TOO FAR AWAY AND STILL COMPATIBLE? " + pp_i + " vs. " + pp_j, 10);
+					 debugMes(report_node_depths(pp_i, graph), 10);
+					 debugMes(report_node_depths(pp_j, graph), 10);
+					 
+					 
+				 }
+				 if (! compatible) {
+					
+					 if (twoPairPathsAreTooFarAwayInGraph(pp_i, pp_j, graph)) {
+						 if (FAST_PASA)
+							 break; 
+						 
+					 }
+				 }
+				 
+				 if (twoPairPathsAreTooFarAwayInGraph(pp_i, pp_j, graph)) {
+					 tooFar = true;
+				 }
+				 else if (tooFar)
+					 debugMes("NOT_TOO_FAR_AFTER_ALL: [" + i + "," + j + "]", 10);
+				 
+				
+				debugMes("Comparing node " + i +" " + pp_i + " with node " +  j +" " + pp_j + "Result: " + compatible,15);
+				
+				if (BFLY_GLOBALS.VERBOSE_LEVEL >= 15)
+					System.err.print("\rDAG[" + i + "," + j + "]=" + dag[i][j]);
+				
+			}
+		}
+		
+		if (BFLY_GLOBALS.VERBOSE_LEVEL >= 12)
+			System.err.println();
+		
+		return dag;
+	}
+	
 	
 	
 	private static String report_node_depths(PairPath pp,
