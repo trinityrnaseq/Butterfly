@@ -1168,6 +1168,8 @@ public class TransAssembly_allProbPaths {
 
         		}
         	}
+        	
+        	/*
         	else if (pasaFlyUniqueOpt) {
 
 
@@ -1178,7 +1180,8 @@ public class TransAssembly_allProbPaths {
         		FinalPaths_all = pasaflyunique(seqvertex_graph, componentReadHash,dijkstraDis, tripletMapper, extendedTripletMapper);
 
         	}
-
+	        */
+        	
         	else {
         		//--------------------------------------------
         		// Regular butterfly all probable paths mode:
@@ -6397,7 +6400,7 @@ HashMap<List<Integer>, Pair<Integer>> transcripts = new HashMap<List<Integer>,Pa
 			debugMes("build_PASA_trellis_left_to_right()", 10);
 			
 			build_PASA_trellis_left_to_right(pasaVerticesUncertainRemovedArr, dag, graph, componentReadHash, dijkstraDis, 
-						pairPathToReadSupport, tripletMapper, extendedTripletMapper);
+						pairPathToReadSupport, tripletMapper, extendedTripletMapper, pp_to_pasa_vertex_idx);
 			
 			// get highest scoring path:
 			debugMes("Identifying highest scoring PASA path.", 10);
@@ -6413,7 +6416,7 @@ HashMap<List<Integer>, Pair<Integer>> transcripts = new HashMap<List<Integer>,Pa
 			// store best path
 			debugMes("Best score: " + best.score + ", containing entries: " + best.paths, 10);
 			
-			List<Integer> best_path_vertex_list = Path.collapse_compatible_pair_paths(best.paths);
+			List<Integer> best_path_vertex_list = Path.collapse_compatible_pair_paths(best.paths, graph, dijkstraDis);
 			
 			debugMes("Best score transcript path: " + best_path_vertex_list, 10);
 				
@@ -6509,6 +6512,9 @@ HashMap<List<Integer>, Pair<Integer>> transcripts = new HashMap<List<Integer>,Pa
 		
 	}
 
+	
+	
+	/*
 	private static HashMap<List<Integer>, Pair<Integer>> pasaflyunique (
 			final DirectedSparseGraph<SeqVertex, SimpleEdge> graph,
 			HashMap<Integer, HashMap<PairPath, Integer>> componentReadHash,
@@ -6773,7 +6779,7 @@ HashMap<List<Integer>, Pair<Integer>> transcripts = new HashMap<List<Integer>,Pa
 		
 	}
 
-	
+	*/
 	
 	
 	
@@ -6827,7 +6833,8 @@ HashMap<List<Integer>, Pair<Integer>> transcripts = new HashMap<List<Integer>,Pa
 			HashMap<Integer, HashMap<PairPath, Integer>> componentReadHash,
 			DijkstraDistance<SeqVertex, SimpleEdge> dijkstraDis, 
 			Map<PairPath, Integer> pairPathToReadSupport, HashMap<Integer, List<List<Integer>>> tripletMapper, 
-			HashMap<Integer, List<List<Integer>>> extendedTripletMapper
+			HashMap<Integer, List<List<Integer>>> extendedTripletMapper, 
+			HashMap<PairPath, Integer> pp_to_pasa_vertex_idx
 			) {
 		
 		
@@ -6841,14 +6848,22 @@ HashMap<List<Integer>, Pair<Integer>> transcripts = new HashMap<List<Integer>,Pa
 				PasaVertex iJ = pasaVerticesArr[j];
 				
 				
+				// direction j -> i
+				
+				
 				if (! dag[j][i]) {
+					
+					continue;
+					
 					// see if too far apart
+					/*
 					if (FAST_PASA && twoPairPathsAreTooFarAwayInGraph(iV.pp, iJ.pp, graph)) {
 							break;
 					}
 					else {
 						continue;  // must conflict
 					}
+					*/
 				}
 				
 				// require that they share a node in common
@@ -6867,11 +6882,18 @@ HashMap<List<Integer>, Pair<Integer>> transcripts = new HashMap<List<Integer>,Pa
 				// see if we can extend paths in iJ to include pairpath represented by iV
 				
 				final List<ScoredPath> sp_list = iJ.get_fromPaths();
+				
+				float highest_path_score = 0;
+				ScoredPath highest_scoring_path_to_extend = null;
+				
+				
 				for (ScoredPath sp : sp_list) {
 					// is there sufficient read support for extending this path?
 					
 					//debugMes("\nnote, sp_list is of size: " + sp_list.size(), 10);
 					//debugMes("\nAdding path list to [iV] from [iJ] " + sp.paths, 10);
+					
+					/*
 					
 					List<PairPath> extendedList = new ArrayList<PairPath>();
 					extendedList.addAll(sp.paths);
@@ -6882,13 +6904,45 @@ HashMap<List<Integer>, Pair<Integer>> transcripts = new HashMap<List<Integer>,Pa
 						sp.path_extended = true;
 					}
 					
+					*/
+					
+					// ensure there are no incompatibilities with existing path components.
+					boolean found_incompatibility = false;
+					for (PairPath pp : sp.paths) {
+						int pp_idx = pp_to_pasa_vertex_idx.get(pp);
+						if (! dag[pp_idx][i]) {
+							// sorry, breaks compatibility with earlier pp in chain
+							found_incompatibility = true;
+							break;
+							
+						}
+					
+					}
+					if (found_incompatibility) {
+						continue; // this pairpath list will allow for productive extension here.
+					}
+						
+						
+					float extendedPathScore = sp.score + iV.readSupport + iV.num_contained;
+
+					if (extendedPathScore > highest_path_score) { // && ! violates_triplet_support(tripletMapper, extendedList)) {
+						highest_path_score = extendedPathScore;
+						highest_scoring_path_to_extend = sp;
+
+					}
+
 				}
-				
-				
-				
+				if (highest_scoring_path_to_extend != null) {
+					
+					List<PairPath> extendedList = new ArrayList<PairPath>();
+					extendedList.addAll(highest_scoring_path_to_extend.paths);
+					extendedList.add(iV.pp);
+					
+					highest_scoring_path_to_extend.path_extended = true;
+					iV.push_fromPaths(new ScoredPath(extendedList, highest_path_score));
+				}
+
 			}
-			
-			
 			
 		}
 		

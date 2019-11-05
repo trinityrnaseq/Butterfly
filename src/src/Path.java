@@ -1,6 +1,7 @@
 
 import java.util.*;
 
+import edu.uci.ics.jung.algorithms.shortestpath.DijkstraDistance;
 import edu.uci.ics.jung.graph.DirectedSparseGraph;
 
 
@@ -424,23 +425,131 @@ public class Path {
 	}
 
 
-	public static List<Integer> collapse_compatible_pair_paths(List<PairPath> paths) {
+	public static List<Integer> collapse_compatible_pair_paths(List<PairPath> paths,
+			DirectedSparseGraph<SeqVertex, SimpleEdge> graph, 
+			DijkstraDistance<SeqVertex, SimpleEdge> dijkstraDis) {
 		
 		// note this is over-simplified, as the pp are separated into their individual paths
 		// but methods using this should have been smarter about deciding what to collapse based on pp constraints.
 		
-		List<List<Integer>> all_individual_paths = new ArrayList<List<Integer>>();
+		//List<List<Integer>> all_individual_paths = new ArrayList<List<Integer>>();
+		
+		HashSet<SeqVertex> all_seq_vertices = new HashSet<SeqVertex>();
 		
 		for (PairPath pp : paths) {
-			all_individual_paths.add(pp.getPath1());
+			//all_individual_paths.add(pp.getPath1());
+			
+			for (Integer node_id : pp.get_all_node_ids()) {
+				SeqVertex v = SeqVertex.retrieveSeqVertexByID(node_id);
+				all_seq_vertices.add(v);
+			}
+			
+			/*
 			if (pp.hasSecondPath()) {
 				all_individual_paths.add(pp.getPath2());
 			}
+			*/
 		}
 		
-		return(Path.collapse_compatible_paths(all_individual_paths));
+		return(Path.collapse_compatible_paths_fill_gaps(all_seq_vertices, graph, dijkstraDis));
 	}
 
+
+	private static List<Integer> collapse_compatible_paths_fill_gaps(HashSet<SeqVertex> all_seq_vertices,
+			DirectedSparseGraph<SeqVertex, SimpleEdge> graph, 
+			DijkstraDistance<SeqVertex, SimpleEdge> dijkstraDis) {
+		
+
+		Comparator<SeqVertex> NodeDepthOrderer = new Comparator<SeqVertex>() { // sort by first node depth in graph
+			public int compare(SeqVertex a, SeqVertex b) {
+				
+				int depthA = a._node_depth;
+				int depthB = b._node_depth;
+				
+				if (depthA < depthB) {
+					return(-1);
+				}
+				else if (depthA > depthB) {
+					return(1);
+				}
+				else {
+					return(0);
+				}
+			}
+		};
+		
+		
+		ArrayList<SeqVertex> path_vertices = new ArrayList<SeqVertex>(all_seq_vertices);
+		
+		Collections.sort(path_vertices, NodeDepthOrderer);
+		
+		List<Integer> reconstructed_transcript_path = new ArrayList<Integer>();
+		
+		reconstructed_transcript_path.add(path_vertices.get(0).getID());
+		for (int i = 1; i < path_vertices.size(); i++) {
+			SeqVertex before_vertex = path_vertices.get(i-1);
+			SeqVertex after_vertex = path_vertices.get(i);
+			
+			// double check the ancestry
+			if (! (SeqVertex.isAncestral(before_vertex, after_vertex, dijkstraDis) > 0)) {
+				throw(new RuntimeException("Error, reconstructing path but ordered nodes dont show ancestry!"));
+			}
+			
+			// see if they are directly connected in the graph.
+			if (graph.isPredecessor(before_vertex, after_vertex)) {
+				// yes, directly connected
+				reconstructed_transcript_path.add(path_vertices.get(i).getID());
+				if (BFLY_GLOBALS.VERBOSE_LEVEL >= 10) 
+					System.err.println("path collapsing: confirmed parent/child: " + before_vertex + " and " + after_vertex);
+			} else {
+				// problem... have a gap to fill here
+				if (BFLY_GLOBALS.VERBOSE_LEVEL >= 10) 
+					System.err.println("path collapsing.... need to fill gap between " + before_vertex + " and " + after_vertex);
+				
+				// impute path
+				List<Integer>imputed_path = new ArrayList<Integer>();
+				SeqVertex v = before_vertex;
+				while (v != after_vertex) {
+					
+					boolean extended = false;
+					for (SeqVertex successor : graph.getSuccessors(v)) {
+						
+						if (successor == after_vertex) {
+							v = successor;
+							imputed_path.add(v.getID());
+							extended = true;
+							break;
+						
+						} else if (SeqVertex.isAncestral(successor, after_vertex, dijkstraDis) > 0) {
+							// for now, just take the first one we encounter.  //FIXME:  make this an optimization function to choose best.
+							v = successor;
+							imputed_path.add(v.getID());
+							extended = true;
+							break;
+						}
+						
+					}
+					if (! extended) {
+						throw new RuntimeException("Error, didn't find an extesion of " + before_vertex + " towards " + after_vertex);
+					}
+				}
+				
+				if (BFLY_GLOBALS.VERBOSE_LEVEL >= 10)  {
+					System.err.println("found gap path between: " + before_vertex + " and " + after_vertex + 
+							" and imputed connections: " + imputed_path);
+				}
+				reconstructed_transcript_path.addAll(imputed_path);
+			}
+			
+		}
+		
+		
+		return(reconstructed_transcript_path);
+		
+		
+		
+		
+	}
 
 	public static List<List<Integer>> collapse_compatible_paths_to_min_set(
 			List<List<Integer>> chain_i_path_list) {
