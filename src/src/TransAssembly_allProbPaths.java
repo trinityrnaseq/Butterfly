@@ -569,11 +569,12 @@ public class TransAssembly_allProbPaths {
 		}
 
 		
+		/*
 		if (cufflinksOpt || pasaFlyOpt || pasaFlyUniqueOpt) {
 			debugMes("CuffFly or PasaFly selected - after imputing connections between pairs, running in SE mode to avoid uncertain alignments that break DAG transitivity", 5);
 			MAKE_PE_SE = true;
 		}
-		
+		*/
 		
 
 		printUsage = printUsage 
@@ -6250,7 +6251,7 @@ HashMap<List<Integer>, Pair<Integer>> transcripts = new HashMap<List<Integer>,Pa
 		ArrayList<PairPath> pairPathsUncertainRemoved = new ArrayList<PairPath>(pairPathsContainmentsRemoved);
 		ArrayList<PasaVertex> pasaVerticesUncertainRemoved = new ArrayList<PasaVertex>(pasaVerticesContainmentsRemoved);
 
-	
+		/*
 		debugMes("Identifying uncertain entries that break transitivities.", 10);
 		// identify and remove uncertain entries (those that break transitive compatibility relationships)
 		ArrayList<Integer> uncertain = getUncertainRequireOverlap(dag, pairPathsContainmentsRemovedArr, graph, dijkstraDis);
@@ -6266,7 +6267,8 @@ HashMap<List<Integer>, Pair<Integer>> transcripts = new HashMap<List<Integer>,Pa
 			pasaVerticesUncertainRemoved.remove(pasaVerticesContainmentsRemovedArr[uncertain.get(i)]);
 			pairPathsUncertainRemoved.remove(pairPathsContainmentsRemovedArr[uncertain.get(i)]);
 		}
-
+	    */
+		
 		HashSet<Integer> vertices_after_removed_uncertainties = extract_vertex_list_from_PairPaths(pairPathsUncertainRemoved);
 		
 		if (vertices_after_removed_uncertainties.size() < vertices.size()) {
@@ -6291,6 +6293,8 @@ HashMap<List<Integer>, Pair<Integer>> transcripts = new HashMap<List<Integer>,Pa
 			debugMes("PairPathAfterUncertainRemoved "+ i + " " + pp + ", count: " + pairPathToReadSupport.get(pp), 10);
 		}
 
+		
+		/*
 		// regenerate the dag now that the uncertain entries are removed.
 		dag = getPairPathCompatibilityDAG(graph, dijkstraDis, pairPathsUncertainRemovedArr); // already identified containments
 
@@ -6319,6 +6323,9 @@ HashMap<List<Integer>, Pair<Integer>> transcripts = new HashMap<List<Integer>,Pa
 		else {
 			debugMes("Transitivity of compatibility graph validates.", 10);
 		}
+		*/
+		
+		
 		
 		// track the final vertex identifiers
 		HashMap<PairPath,Integer> finalVertexPositions = new HashMap<PairPath,Integer>();
