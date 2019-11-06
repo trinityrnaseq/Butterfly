@@ -961,6 +961,8 @@ public class TransAssembly_allProbPaths {
 		}
 
 		
+		TopologicalSort.topoSortSeqVerticesDAG(seqvertex_graph); // expensive! 
+		
 		debugMes("SECTION\n======= Reorganize Read Pairings =========\n\n", 5);
 		dijkstraDis = new DijkstraDistance<SeqVertex, SimpleEdge>(seqvertex_graph, true);
 		seqvertex_combinedReadHash = reorganizeReadPairings(seqvertex_graph, seqvertex_combinedReadHash, dijkstraDis);
@@ -974,6 +976,8 @@ public class TransAssembly_allProbPaths {
 		// if loops remain, move on to the next subComp.
 
 		//removeShortOrphanNodes(graph, MIN_OUTPUT_SEQ);
+
+		
 		
 		Set<Set<SeqVertex>> comps = divideIntoComponents(seqvertex_graph);   //**** IMPORTANT: THIS HAPPENS AFTER UNROLLING REPEATS AND BEFORE FINAL LOOP BREAKING
 
@@ -2591,7 +2595,7 @@ public class TransAssembly_allProbPaths {
 		
 		List<SeqVertex> pred_list = new ArrayList<SeqVertex>(seqvertex_graph.getPredecessors(v));
 		
-		if (pred_list.size() <= 1) { return (0); } // must have multiple parents
+		if (pred_list.size() <= 1) { return (0); } // v must have multiple parents to zip
 		
 		debugMes("## zip_up()", 15);
 		
@@ -2639,7 +2643,7 @@ public class TransAssembly_allProbPaths {
 		
 		List<SeqVertex> child_list = new ArrayList<SeqVertex>(seqvertex_graph.getSuccessors(v));
 		
-		if (child_list.size() <= 1) { return (0); } // must have multiple parents
+		if (child_list.size() <= 1) { return (0); } // v must have multiple children to zip
 		
 		
 		debugMes("##zip_down()", 15);
@@ -2685,6 +2689,25 @@ public class TransAssembly_allProbPaths {
 			DirectedSparseGraph<SeqVertex, SimpleEdge> seqvertex_graph, String dir) {
 	
 		debugMes("attempt_zip_merge_SeqVertices(" + pred_same_orig_id_set + ")", 15);
+		
+		
+		
+		// ensure there aren't direct edges between the nodes to be merged.
+		for (SeqVertex iV : pred_same_orig_id_set) {
+			for (SeqVertex iJ : pred_same_orig_id_set) {
+				
+				if (iV != iJ && (
+						seqvertex_graph.isPredecessor(iV, iJ)
+						||
+						seqvertex_graph.isPredecessor(iJ, iV) ) ) {
+					// not allowed
+					debugMes("\t\tnodes to merge: " + iV + " and " + iJ + " have parent/child relationship, so no merging!", 25);
+					return(0);
+				}
+				
+			}
+		}
+		
 		
 		
 		Integer replacement_vertex_id = getNextID();
@@ -6086,6 +6109,10 @@ HashMap<List<Integer>, Pair<Integer>> transcripts = new HashMap<List<Integer>,Pa
 		return read_parts;
 	}
 	
+	
+	//------------------------------
+	//-------- PASAFLY -------------
+	//------------------------------
 
 	private static HashMap<List<Integer>, Pair<Integer>> pasafly(
 			final DirectedSparseGraph<SeqVertex, SimpleEdge> graph,
@@ -6107,11 +6134,27 @@ HashMap<List<Integer>, Pair<Integer>> transcripts = new HashMap<List<Integer>,Pa
 		Map<PairPath, Integer> pairPathToReadSupport = new HashMap<PairPath, Integer>();
 		
 		populate_pairpaths_and_readsupport(componentReadHash, pairPaths, pairPathToReadSupport);
+		
+		
+		
+		HashMap<List<Integer>, Pair<Integer>> final_transcripts = new HashMap<List<Integer>, Pair<Integer>>();
+		
 			
 		ArrayList<PairPath> pairPathsSortedList = new ArrayList<PairPath>(pairPaths);
 		
-		TopologicalSort.topoSortSeqVerticesDAG(graph);
 		
+		// short circuit if this is a simple single-path assembly (no need for DP!!)
+		List<Integer> best_path_vertex_list = Path.collapse_compatible_pair_paths(pairPathsSortedList, graph, dijkstraDis, true);
+		if (best_path_vertex_list != null) {
+			
+			debugMes("Found simple linear path! using it, no complex assembly required.", 10);
+			
+			final_transcripts.put(best_path_vertex_list, new Pair<Integer>(1,1));
+			return(final_transcripts);
+			
+		}
+		
+		debugMes("Not a sinple linear path.  Exploring more intensive pasafly assembly", 10);
 		
 		Comparator<PairPath> pairPathOrderComparer = new Comparator<PairPath>() { // sort by first node depth in graph
 			public int compare(PairPath a, PairPath b) {
@@ -6188,7 +6231,7 @@ HashMap<List<Integer>, Pair<Integer>> transcripts = new HashMap<List<Integer>,Pa
 		if (BFLY_GLOBALS.VERBOSE_LEVEL >= 10) {
 			debugMes("SORTED PAIRPATHS IN ORDER:", 10);
 			for (PairPath p : pairPathsSortedList) {
-				debugMes("\t" + p + " first node=" + p.getFirstID() + ", topo depth: " + getSeqVertex(graph,p.getFirstID())._node_depth, 10);
+				debugMes("\t" + p + " first node=" + p.getFirstID() + ", topo depth: " + getSeqVertex(graph,p.getFirstID())._node_depth + ", count: " + pairPathToReadSupport.get(p), 10);
 			}
 		}
 		
@@ -6207,40 +6250,16 @@ HashMap<List<Integer>, Pair<Integer>> transcripts = new HashMap<List<Integer>,Pa
 		PairPath[] pairPathsSortedArr = pairPathsSortedList.toArray(new PairPath[pairPathsSortedList.size()]);
 		
 		
-		//----------------------
-		// EXAMINE CONTAINMENTS
-		//----------------------
-		
-		// init containing all, will remove those that are contained by others shortly.
-		ArrayList<PairPath> pairPathsContainmentsRemoved = new ArrayList<PairPath>(pairPathsSortedList);
-		ArrayList<PasaVertex> pasaVerticesContainmentsRemoved = new ArrayList<PasaVertex>(pasaVerticesSortedList);
-
-		
 		debugMes("Assigning pairpath containments.", 10);
 		List<Integer> containments = assignPasaPairPathContainments(graph, dijkstraDis, pasaVerticesSortedArr); // vertices updated to include containment info.
 
-		/*   No!!  cannot remove them...
-		debugMes("REMOVING CONTAINMENTS: " + containments, 10);
-		for(int i = 0; i < containments.size(); i++)
-		{
-
-			pasaVerticesContainmentsRemoved.remove(pasaVerticesSortedArr[containments.get(i)]);
-			pairPathsContainmentsRemoved.remove(pairPathsSortedArr[containments.get(i)]);
-		}
-		*/
 		
 		//------------------------------------------------
-		// EXAMINE UNCERTAINTIES THAT BREAK TRANSITIVITY
-		//------------------------------------------------
 
-		HashSet<Integer> vertices = extract_vertex_list_from_PairPaths(pairPathsContainmentsRemoved);
+		HashSet<Integer> vertices = extract_vertex_list_from_PairPaths(pairPathsSortedList);
 		
-		// making these arrays now too for array method use
-		PairPath [] pairPathsContainmentsRemovedArr = pairPathsContainmentsRemoved.toArray(new PairPath[pairPathsContainmentsRemoved.size()]);
-		PasaVertex [] pasaVerticesContainmentsRemovedArr = pasaVerticesContainmentsRemoved.toArray(new PasaVertex[pasaVerticesContainmentsRemoved.size()]);
 		
-		boolean[][] dag = getPASA_PairPathConsistencyDAG(graph, dijkstraDis, pairPathsContainmentsRemovedArr);
-		//boolean[][] dag = getPairPathCompatibilityDAG(graph, dijkstraDis, pairPathsContainmentsRemovedArr);
+		boolean[][] dag = getPASA_PairPathConsistencyDAG(graph, dijkstraDis, pairPathsSortedArr);
 		
 		
 		if (BFLY_GLOBALS.VERBOSE_LEVEL >= 10) {
@@ -6249,165 +6268,47 @@ HashMap<List<Integer>, Pair<Integer>> transcripts = new HashMap<List<Integer>,Pa
 			System.out.println(boolean_matrix_toString(dag));
 		}
 
-		
 
-		ArrayList<PairPath> pairPathsUncertainRemoved = new ArrayList<PairPath>(pairPathsContainmentsRemoved);
-		ArrayList<PasaVertex> pasaVerticesUncertainRemoved = new ArrayList<PasaVertex>(pasaVerticesContainmentsRemoved);
-
-		/*
-		debugMes("Identifying uncertain entries that break transitivities.", 10);
-		// identify and remove uncertain entries (those that break transitive compatibility relationships)
-		ArrayList<Integer> uncertain = getUncertainRequireOverlap(dag, pairPathsContainmentsRemovedArr, graph, dijkstraDis);
-
-		debugMes("Uncertain indices include: " + uncertain, 10);
-
-		
-		debugMes("REMOVING UNCERTAINTIES: " + uncertain, 10);
-
-		for(int i = 0; i < uncertain.size(); i++)
-		{
-
-			pasaVerticesUncertainRemoved.remove(pasaVerticesContainmentsRemovedArr[uncertain.get(i)]);
-			pairPathsUncertainRemoved.remove(pairPathsContainmentsRemovedArr[uncertain.get(i)]);
-		}
-	    */
-		
-		HashSet<Integer> vertices_after_removed_uncertainties = extract_vertex_list_from_PairPaths(pairPathsUncertainRemoved);
-		
-		if (vertices_after_removed_uncertainties.size() < vertices.size()) {
-			int missing_node_count = vertices.size() - vertices_after_removed_uncertainties.size();
-			debugMes("WARNING, MISSING: " + missing_node_count + " of " + vertices.size() + " nodes after removing uncertainties", 10);
-			for (Integer v : vertices) {
-				if (! vertices_after_removed_uncertainties.contains(v)) {
-					debugMes("WARNING, MISSING NODE: After removing uncertainties, missing node from graph: " + v, 10);
-				}
-			}
-		}
 			
-		
-		PasaVertex[] pasaVerticesUncertainRemovedArr = pasaVerticesUncertainRemoved.toArray(new PasaVertex[pasaVerticesUncertainRemoved.size()]);
-		PairPath[] pairPathsUncertainRemovedArr = pairPathsUncertainRemoved.toArray(new PairPath[pairPathsUncertainRemoved.size()]);
-
-		//print pair paths
-		debugMes("PAIR PATHS remaining after uncertainties removed ---------------------------------------",10);
-		for(int i = 0; i < pairPathsUncertainRemovedArr.length; i++)
-		{
-			PairPath pp = pairPathsUncertainRemovedArr[i];
-			debugMes("PairPathAfterUncertainRemoved "+ i + " " + pp + ", count: " + pairPathToReadSupport.get(pp), 10);
-		}
-
-		
-		/*
-		// regenerate the dag now that the uncertain entries are removed.
-		dag = getPairPathCompatibilityDAG(graph, dijkstraDis, pairPathsUncertainRemovedArr); // already identified containments
-
-		//print dag
-		debugMes("DAG after uncertainties removed ---------------------------\n" + boolean_matrix_toString(dag),10);
-
-
-		//2.2 check transitivity
-		if(!checkTransitivityRequireOverlap(dag, pairPathsUncertainRemovedArr, graph, dijkstraDis))
-		{
-			throw(new RuntimeException("Graph is NOT transitive!"));
-
-		}
-		else {
-			debugMes("Transitivity of compatibility graph validates.", 10);
-		}
-
-		
-		
-		//2.2 check transitivity
-		if(!checkTransitivityRequireOverlap(dag, pairPathsUncertainRemovedArr, graph, dijkstraDis))
-		{
-			throw(new RuntimeException("Graph is NOT transitive!"));
-			
-		}
-		else {
-			debugMes("Transitivity of compatibility graph validates.", 10);
-		}
-		*/
-		
-		
-		
+	
 		// track the final vertex identifiers
 		HashMap<PairPath,Integer> finalVertexPositions = new HashMap<PairPath,Integer>();
-		for (int i = 0; i < pairPathsUncertainRemovedArr.length; i++) {
-			finalVertexPositions.put(pairPathsUncertainRemovedArr[i], i);
+		for (int i = 0; i < pairPathsSortedArr.length; i++) {
+			finalVertexPositions.put(pairPathsSortedArr[i], i);
 		}
-		
-		
-		/* 
-		
-		// Now, extract the top combined path that contains each missing transcript
-		// Prioritize according to paired path support, and break ties according to representing the most additional missing entries.
-		debugMes("build_PASA_trellis_right_to_left()", 10);
-		
-		build_PASA_trellis_right_to_left(pasaVerticesUncertainRemovedArr, dag, graph, componentReadHash, dijkstraDis, pairPathToReadSupport, tripletMapper);
-		
-		List<PairPath> unrepresented_pairpaths = new ArrayList<PairPath>(finalVertexPositions.keySet());
-		
-		final HashMap<PairPath,Integer>pairPathToReadSupportFixed  = new HashMap<PairPath,Integer>(pairPathToReadSupport);
-		
-		Collections.sort(unrepresented_pairpaths, new Comparator<PairPath>() {
-			public int compare(PairPath a, PairPath b) {
-				
-				int count_a = pairPathToReadSupportFixed.get(a);
-				int count_b = pairPathToReadSupportFixed.get(b);
-			
-				if (count_a == count_b) {
-					return(0);
-				}
-				else if (count_a > count_b) {
-					return(-1);
-				}
-				else {
-					return(1);
-				}
-				
-			}
-			
-		});
-		
-		*/
 
 		
-		HashMap<List<Integer>, Pair<Integer>> final_transcripts = new HashMap<List<Integer>, Pair<Integer>>();
 		
-		
-		//Iterator<PairPath> it = unrepresented_pairpaths.iterator();
 		
 		
 		HashMap<PairPath,Integer> pp_to_pasa_vertex_idx = new HashMap<PairPath,Integer>();
 
-		for (int i = 0; i < pasaVerticesUncertainRemovedArr.length; i++) {
-			pp_to_pasa_vertex_idx.put(pasaVerticesUncertainRemovedArr[i].pp, i);
+		for (int i = 0; i < pasaVerticesSortedArr.length; i++) {
+			pp_to_pasa_vertex_idx.put(pasaVerticesSortedArr[i].pp, i);
 		}
 		
 		
-		
-		//while (it.hasNext() && ! finalVertexPositions.isEmpty()) {
 		int round = 0;
 		while(! finalVertexPositions.isEmpty()) {
 			
 			round += 1;
 			debugMes("pasa round: " + round, 10);
 			
-			for (int i = 0; i < pasaVerticesUncertainRemovedArr.length; i++) {
-				pasaVerticesUncertainRemovedArr[i].init_PasaVertex_to_and_from_paths();
+			for (int i = 0; i < pasaVerticesSortedArr.length; i++) {
+				pasaVerticesSortedArr[i].init_PasaVertex_to_and_from_paths();
 			}
 			
 			debugMes("build_PASA_trellis_left_to_right()", 10);
 			
-			build_PASA_trellis_left_to_right(pasaVerticesUncertainRemovedArr, dag, graph, componentReadHash, dijkstraDis, 
+			build_PASA_trellis_left_to_right(pasaVerticesSortedArr, dag, graph, componentReadHash, dijkstraDis, 
 						pairPathToReadSupport, tripletMapper, extendedTripletMapper, pp_to_pasa_vertex_idx);
 			
 			// get highest scoring path:
 			debugMes("Identifying highest scoring PASA path.", 10);
 			ScoredPath best = null;
-			for (int i = 0; i < pasaVerticesUncertainRemovedArr.length; i++) {
+			for (int i = 0; i < pasaVerticesSortedArr.length; i++) {
 				
-				ScoredPath sp = pasaVerticesUncertainRemovedArr[i].get_highest_scoring_fromPath();
+				ScoredPath sp = pasaVerticesSortedArr[i].get_highest_scoring_fromPath();
 				if (best == null || sp.score > best.score) {
 					best = sp;
 				}
@@ -6416,12 +6317,10 @@ HashMap<List<Integer>, Pair<Integer>> transcripts = new HashMap<List<Integer>,Pa
 			// store best path
 			debugMes("Best score: " + best.score + ", containing entries: " + best.paths, 10);
 			
-			List<Integer> best_path_vertex_list = Path.collapse_compatible_pair_paths(best.paths, graph, dijkstraDis);
+			best_path_vertex_list = Path.collapse_compatible_pair_paths(best.paths, graph, dijkstraDis, false);
 			
 			debugMes("Best score transcript path: " + best_path_vertex_list, 10);
-				
-			
-			
+					
 			// remove those pairpaths included in the best path
 			List<PairPath> toRemove = new ArrayList<PairPath>();
 			for (PairPath pp : finalVertexPositions.keySet()) {
@@ -6435,10 +6334,10 @@ HashMap<List<Integer>, Pair<Integer>> transcripts = new HashMap<List<Integer>,Pa
 			debugMes("Num paths to remove:" + toRemove.size(), 10);
 			for (PairPath pp : toRemove) {
 				finalVertexPositions.remove(pp);
-				if (! pasaVerticesUncertainRemovedArr[pp_to_pasa_vertex_idx.get(pp)].is_used()) {
+				if (! pasaVerticesSortedArr[pp_to_pasa_vertex_idx.get(pp)].is_used()) {
 					
 					all_already_used = false;
-					pasaVerticesUncertainRemovedArr[pp_to_pasa_vertex_idx.get(pp)].set_used();
+					pasaVerticesSortedArr[pp_to_pasa_vertex_idx.get(pp)].set_used();
 				}
 			}
 			toRemove.clear();
@@ -6452,53 +6351,7 @@ HashMap<List<Integer>, Pair<Integer>> transcripts = new HashMap<List<Integer>,Pa
 			final_transcripts.put(best_path_vertex_list, new Pair<Integer>(1,1));
 			
 			
-			//PairPath pp = it.next();
 			
-			/*
-			if (! finalVertexPositions.containsKey(pp)) {
-				// recovered in a previous round
-				continue;
-			} */
-		
-			//debugMes("Nucleating next pasa path on PP: " + pp + ", having read support: " + pairPathToReadSupportFixed.get(pp), 10);
-			
-			// get the highest scoring chain that contains pp
-			//int index = finalVertexPositions.get(pp);
-			
-			/*
-			List<ScoredPath> sp_from = pasaVerticesUncertainRemovedArr[index].get_all_highest_scoring_fromPath();
-			List<ScoredPath> sp_to = pasaVerticesUncertainRemovedArr[index].get_all_highest_scoring_toPath();
-			
-			debugMes("Best combined partial paths containing pairpath: " + pp + " include: (From): " 
-					+ sp_from + ", (To): " + sp_to, 10);
-			
-			List<PairPath> combined_pp_list = new ArrayList<PairPath>();
-			if (sp_from.size() > 1 || sp_to.size() > 1) {
-				// find the combination that covers the most currently unrepresented pairpaths
-				combined_pp_list = find_paired_paths_with_greatest_map_support(sp_from, sp_to, finalVertexPositions);
-			}
-			else {
-				// single path each.
-				combined_pp_list.addAll(sp_from.get(0).paths);
-				combined_pp_list.addAll(sp_to.get(0).paths);
-			}
-			
-			List<Integer> combined_path_vertex_list = Path.collapse_compatible_pair_paths(combined_pp_list);
-			final_transcripts.put(combined_path_vertex_list, new Pair<Integer>(1,1));
-			// remove those pairpaths included in the best path
-		
-			for (PairPath p : finalVertexPositions.keySet()) {
-				
-				if (p.isCompatibleAndContainedBySinglePath(combined_path_vertex_list))
-					toRemove.add(p);
-			}
-			for (PairPath p : toRemove)
-				finalVertexPositions.remove(p);
-			
-			toRemove.clear();
-			
-			 */
-		
 		
 			//if (round >= 10) { break; }  // testing purposes
 			
@@ -6940,6 +6793,10 @@ HashMap<List<Integer>, Pair<Integer>> transcripts = new HashMap<List<Integer>,Pa
 					
 					highest_scoring_path_to_extend.path_extended = true;
 					iV.push_fromPaths(new ScoredPath(extendedList, highest_path_score));
+					
+					if (iV.fromPaths.size() >= PasaVertex.max_top_paths_to_store) {
+						break;
+					}
 				}
 
 			}
@@ -8186,31 +8043,8 @@ HashMap<List<Integer>, Pair<Integer>> transcripts = new HashMap<List<Integer>,Pa
 				
 				 boolean compatible = isPASA_CompatibleORdirectionallyConsistent(pp_i, pp_j, graph, dijkstraDis);
 
-				 dag[i][j] =compatible;
-				 
-				
-				 if (twoPairPathsAreTooFarAwayInGraph(pp_i, pp_j, graph) && compatible) {
-					 debugMes("HOW CAN THESE BE TOO FAR AWAY AND STILL COMPATIBLE? " + pp_i + " vs. " + pp_j, 10);
-					 debugMes(report_node_depths(pp_i, graph), 10);
-					 debugMes(report_node_depths(pp_j, graph), 10);
-					 
-					 
-				 }
-				 if (! compatible) {
-					
-					 if (twoPairPathsAreTooFarAwayInGraph(pp_i, pp_j, graph)) {
-						 if (FAST_PASA)
-							 break; 
-						 
-					 }
-				 }
-				 
-				 if (twoPairPathsAreTooFarAwayInGraph(pp_i, pp_j, graph)) {
-					 tooFar = true;
-				 }
-				 else if (tooFar)
-					 debugMes("NOT_TOO_FAR_AFTER_ALL: [" + i + "," + j + "]", 10);
-				 
+				 dag[i][j] = compatible;
+				 				 
 				
 				debugMes("Comparing node " + i +" " + pp_i + " with node " +  j +" " + pp_j + "Result: " + compatible,15);
 				
@@ -9782,7 +9616,9 @@ HashMap<List<Integer>, Pair<Integer>> transcripts = new HashMap<List<Integer>,Pa
 	 */
 	private static PairPath combinePaths(
 			DirectedSparseGraph<SeqVertex, SimpleEdge> graph,
-			List<Integer> path1, List<Integer> path2, DijkstraDistance<SeqVertex,SimpleEdge> dijkstraDis) {
+			List<Integer> path1, 
+			List<Integer> path2, 
+			DijkstraDistance<SeqVertex,SimpleEdge> dijkstraDis) {
 		
 		
 		debugMes("combinePaths: " + path1 + ", " + path2, 15);
@@ -9895,6 +9731,7 @@ HashMap<List<Integer>, Pair<Integer>> transcripts = new HashMap<List<Integer>,Pa
 
 				}
 				if (impute) {
+					//FIXME:  make sure the distance between pairs is as expected!
 					debugMes("Could Impute path connecting" + path + " containing intervening nodes: " + intervening_vertex_ids, 15);
 					if (! intervening_vertex_ids.isEmpty()) {
 						path.getPath1().addAll(intervening_vertex_ids);

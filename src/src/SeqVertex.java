@@ -461,6 +461,14 @@ public class SeqVertex {
 		}
 	}
 	
+	public String getSeqKmerAdj() {
+		return(this.getNameKmerAdj());
+	}
+	
+	public int getSeqKmerAdjLen() {
+		return(this.getNameKmerAdj().length());
+	}
+	
 	
 	/**
 	 * return the name of this vertex. if the name is longer than 20bp, return first and last 5bp. with the id

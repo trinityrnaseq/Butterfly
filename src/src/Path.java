@@ -424,10 +424,21 @@ public class Path {
 		
 	}
 
-
+	
+	
 	public static List<Integer> collapse_compatible_pair_paths(List<PairPath> paths,
 			DirectedSparseGraph<SeqVertex, SimpleEdge> graph, 
 			DijkstraDistance<SeqVertex, SimpleEdge> dijkstraDis) {
+			
+			return(collapse_compatible_pair_paths(paths, graph, dijkstraDis, false));
+	}
+	
+	
+
+	public static List<Integer> collapse_compatible_pair_paths(List<PairPath> paths,
+			DirectedSparseGraph<SeqVertex, SimpleEdge> graph, 
+			DijkstraDistance<SeqVertex, SimpleEdge> dijkstraDis,
+			boolean return_null_on_fail) {
 		
 		// note this is over-simplified, as the pp are separated into their individual paths
 		// but methods using this should have been smarter about deciding what to collapse based on pp constraints.
@@ -451,13 +462,14 @@ public class Path {
 			*/
 		}
 		
-		return(Path.collapse_compatible_paths_fill_gaps(all_seq_vertices, graph, dijkstraDis));
+		return(Path.collapse_compatible_paths_fill_gaps(all_seq_vertices, graph, dijkstraDis, return_null_on_fail));
 	}
 
 
 	private static List<Integer> collapse_compatible_paths_fill_gaps(HashSet<SeqVertex> all_seq_vertices,
 			DirectedSparseGraph<SeqVertex, SimpleEdge> graph, 
-			DijkstraDistance<SeqVertex, SimpleEdge> dijkstraDis) {
+			DijkstraDistance<SeqVertex, SimpleEdge> dijkstraDis,
+			boolean return_null_on_fail) {
 		
 
 		Comparator<SeqVertex> NodeDepthOrderer = new Comparator<SeqVertex>() { // sort by first node depth in graph
@@ -483,6 +495,10 @@ public class Path {
 		
 		Collections.sort(path_vertices, NodeDepthOrderer);
 		
+		if (BFLY_GLOBALS.VERBOSE_LEVEL >= 10) {
+			System.err.println("Sorted incoming path vertices: " + path_vertices);
+		}
+		
 		List<Integer> reconstructed_transcript_path = new ArrayList<Integer>();
 		
 		reconstructed_transcript_path.add(path_vertices.get(0).getID());
@@ -492,11 +508,15 @@ public class Path {
 			
 			// double check the ancestry
 			if (! (SeqVertex.isAncestral(before_vertex, after_vertex, dijkstraDis) > 0)) {
-				throw(new RuntimeException("Error, reconstructing path but ordered nodes dont show ancestry!"));
+				if (return_null_on_fail) {
+					return(null);
+				} else {
+					throw(new RuntimeException("Error, reconstructing path but ordered nodes dont show ancestry!"));
+				}
 			}
 			
 			// see if they are directly connected in the graph.
-			if (graph.isPredecessor(before_vertex, after_vertex)) {
+			if (graph.isPredecessor(after_vertex, before_vertex)) {
 				// yes, directly connected
 				reconstructed_transcript_path.add(path_vertices.get(i).getID());
 				if (BFLY_GLOBALS.VERBOSE_LEVEL >= 10) 
@@ -509,6 +529,7 @@ public class Path {
 				// impute path
 				List<Integer>imputed_path = new ArrayList<Integer>();
 				SeqVertex v = before_vertex;
+				int imputed_seq_length = 0;
 				while (v != after_vertex) {
 					
 					boolean extended = false;
@@ -525,6 +546,7 @@ public class Path {
 							v = successor;
 							imputed_path.add(v.getID());
 							extended = true;
+							imputed_seq_length += v.getSeqKmerAdjLen();
 							break;
 						}
 						
@@ -536,7 +558,7 @@ public class Path {
 				
 				if (BFLY_GLOBALS.VERBOSE_LEVEL >= 10)  {
 					System.err.println("found gap path between: " + before_vertex + " and " + after_vertex + 
-							" and imputed connections: " + imputed_path);
+							" and imputed connections: " + imputed_path + " with length: " + imputed_seq_length);
 				}
 				reconstructed_transcript_path.addAll(imputed_path);
 			}
