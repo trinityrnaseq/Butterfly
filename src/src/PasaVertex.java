@@ -13,7 +13,9 @@ public class PasaVertex {
 	List<ScoredPath> fromPaths;
 	List<ScoredPath> toPaths;
 	
-	float num_contained = 0;
+	List<PasaVertex> contained_PasaVertices;
+	
+	HashSet<PasaVertex> overlapping_compatible_PasaVertices;
 	
 	boolean used = false;
 	
@@ -39,30 +41,47 @@ public class PasaVertex {
 	
 	public PasaVertex (final PairPath p, int readSupport) {
 		
-		pp = p;
+		this.pp = p;
 		this.readSupport = readSupport;	
-			
+	
+		this.contained_PasaVertices = new ArrayList<PasaVertex>();
+		this.overlapping_compatible_PasaVertices = new HashSet<PasaVertex>();
 	}
 	
 	
 	public void init_PasaVertex_to_and_from_paths() {
-		List<PairPath> path = new ArrayList<PairPath>();
-		path.add(this.pp);
+		List<PasaVertex> path = new ArrayList<PasaVertex>();
+		path.add(this);
 		
 		fromPaths = new ArrayList<ScoredPath>();
 		toPaths = new ArrayList<ScoredPath>();
 		
-		ScoredPath sp = new ScoredPath(path, this.num_contained + this.readSupport);
+		ScoredPath sp = new ScoredPath(path, this.readSupport + this.containment_support());
 		
 		this.fromPaths.add(sp);
 		this.toPaths.add(sp);
 		
 	}
 	
+	
+	public float containment_support() {
+		
+		float sum_containment_read_support = 0;
+		for (PasaVertex pv : this.contained_PasaVertices) {
+			sum_containment_read_support += pv.readSupport;
+		}
+		return(sum_containment_read_support);
+	}
+	
+	
 	public void set_used() {
-		used = true;
-		num_contained /= 1e6;
-		readSupport /= 1e6;
+		if (! this.used) {
+			this.used = true;
+			this.readSupport /= 1e6;
+		}
+		for (PasaVertex pv : this.contained_PasaVertices) {
+			pv.set_used();
+		}
 	}
 	
 	
@@ -175,20 +194,15 @@ public final List<ScoredPath> get_all_highest_scoring_toPath () {
 	
 	
 	public String toString () {
-		String ret = "PasaVertex.  PairPath: " + this.pp + "\n";
-		ret += "From ScorePaths:\n";
-		
-		for (ScoredPath sp : this.get_fromPaths()) {
-			ret += "\tScore: " + sp.score + ", pp: " + sp.paths + "\n";
-			
-		}
-		
-		ret += "To ScorePaths:\n";
-		for (ScoredPath sp : this.get_toPaths()) {
-			ret += "\tScore: " + sp.score + ", pp: " + sp.paths + "\n\n";
-		}
+		String ret = "PasaVertex.  PairPath: " + this.pp + ", readSupport: " + this.readSupport;
 		
 		return(ret);
+	}
+
+
+	public void add_containment(PasaVertex pv) {
+		this.contained_PasaVertices.add(pv);
+		
 	}
 	
 	
