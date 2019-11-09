@@ -6290,6 +6290,16 @@ HashMap<List<Integer>, Pair<Integer>> transcripts = new HashMap<List<Integer>,Pa
 
 		}
 		
+		// ---------------------------------
+		// INIT scores for pasafly iteration
+		debugMes("Initing vertex scores", 10);
+		for (int i = 0; i < pasaVerticesSortedArr.length; i++) {
+			pasaVerticesSortedArr[i].init_PasaVertex_to_and_from_paths();
+
+			debugMes("PrePasaFly Score Initialization ([ " + i + "] " + pasaVerticesSortedArr[i].show_from_paths(), 10);
+		}
+		
+		
 		
 		debugMes("Beginning PasaFly Dynamic Programming Alg", 10);
 		int round = 0;
@@ -6298,33 +6308,70 @@ HashMap<List<Integer>, Pair<Integer>> transcripts = new HashMap<List<Integer>,Pa
 			round += 1;
 			debugMes("pasa round: " + round, 10);
 			
+			
+			/*
+			debugMes("Pre init score paths:", 10);
 			for (int i = 0; i < pasaVerticesSortedArr.length; i++) {
-				pasaVerticesSortedArr[i].init_PasaVertex_to_and_from_paths();
+				debugMes("Pre REINIT(R" + round + ") : [ " + i + "] ", 10);
+				debugMes(pasaVerticesSortedArr[i].show_from_paths(), 10);
 			}
 			
+			// ---------------------------------
+			// INIT scores for pasafly iteration
+			debugMes("Initing vertex scores", 10);
+			for (int i = 0; i < pasaVerticesSortedArr.length; i++) {
+				pasaVerticesSortedArr[i].init_PasaVertex_to_and_from_paths();
+				
+				debugMes("Post REINIT(R" + round + ") : [ " + i + "] ", 10);
+				debugMes(pasaVerticesSortedArr[i].show_from_paths(), 10);
+			}
+			*/
+			
+			
+			// -------------
+			// Build Trellis
 			debugMes("build_PASA_trellis_left_to_right()", 10);
 			
 			build_PASA_trellis_left_to_right(pasaVerticesSortedArr, dag, graph, componentReadHash, dijkstraDis, 
-						pairPathToReadSupport, tripletMapper, extendedTripletMapper, pp_to_pasa_vertex_idx);
+						pairPathToReadSupport, tripletMapper, extendedTripletMapper, pp_to_pasa_vertex_idx, round);
 			
+			
+			/*
+			// just for debugging
+			for (int i = 0; i < pasaVerticesSortedArr.length; i++) {
+				debugMes("Post Trellis: R(" + i + ")", 10);
+				debugMes(pasaVerticesSortedArr[i].show_from_paths(), 10);
+			}
+			*/
+			
+			// -------------------------
 			// get highest scoring path:
 			debugMes("Identifying highest scoring PASA path.", 10);
 			ScoredPath best = null;
+			
 			for (int i = 0; i < pasaVerticesSortedArr.length; i++) {
 				//debugMes("evaluating highest scoring path: " + i, 10);
 				ScoredPath sp = pasaVerticesSortedArr[i].get_highest_scoring_fromPath();
-				if (best == null || sp.score > best.score) {
+				
+				debugMes("-R" + round + ": evaluating path scores stored at pv: " + pasaVerticesSortedArr[i] + 
+						" stored_score: " + sp.pv_path_score + ", retallied at: " + sp.tally_score(), 20);
+				debugMes(sp.describe_score_calculation(), 20);
+				
+				if (best == null || sp.pv_path_score > best.pv_path_score) {
 					best = sp;
+					debugMes("-R" + round + " best score updated: " + best.pv_path_score + " pv_path: " + best.pv_path, 20);
+
+					debugMes("-best scored path so far = " + sp.pv_path_score + 
+							" (round: " + round + ", iter: " + i + "\n" +
+							sp.describe_score_calculation(), 20);
 				}
 			}
 			
+			//----------------
 			// store best path
-			debugMes("Best score: " + best.score + ", containing entries: " + best.pv_path, 10);
+			debugMes("-R" + round + " Best score: " + best.pv_path_score + ", containing entries: " + best.pv_path, 10);
 			if (BFLY_GLOBALS.VERBOSE_LEVEL >= 10) {
-				debugMes("Ordered pair paths in best path:", 10);	
-				for (PasaVertex pv : best.pv_path) {
-					debugMes(pv.pp + " count: " + pairPathToReadSupport.get(pv.pp), 10);
-				}
+				debugMes(best.describe_score_calculation(), 10);
 			}
 			
 			
@@ -6348,6 +6395,7 @@ HashMap<List<Integer>, Pair<Integer>> transcripts = new HashMap<List<Integer>,Pa
 				
 				if (pp.isCompatibleAndContainedBySinglePath(best_path_vertex_list))
 					toRemove.add(pp);
+				
 			}
 			
 			boolean all_already_used = true;
@@ -6355,24 +6403,64 @@ HashMap<List<Integer>, Pair<Integer>> transcripts = new HashMap<List<Integer>,Pa
 			debugMes("Num paths to remove:" + toRemove.size(), 10);
 			for (PairPath pp : toRemove) {
 				finalVertexPositions.remove(pp);
+				
 				if (! pasaVerticesSortedArr[pp_to_pasa_vertex_idx.get(pp)].is_used()) {
-					
 					all_already_used = false;
 					pasaVerticesSortedArr[pp_to_pasa_vertex_idx.get(pp)].set_used();
-				}
+				}	
 			}
 			toRemove.clear();
 			
+	
+			
 			if (all_already_used) {
-				debugMes("pasa fly round[" + round + "],  All nodes already reported in previous paths. Stopping. ", 10);
+				debugMes("pasafly round[" + round + "],  All nodes already reported in previous paths. Stopping. ", 10);
 				break;
 			}
+			
 			
 			// store reconstructed transcript
 			final_transcripts.put(best_path_vertex_list, new Pair<Integer>(1,1));
 			
 			
+			//if (true) { continue; }
 			
+			
+			// -----------------------------------------------
+			// Decrement read support for contained pair paths
+			debugMes("Decrementing read support for contained pair paths", 10);
+			for (int i = 0; i < pairPathsSortedArr.length; i++) {
+				PairPath pp = pairPathsSortedArr[i];
+				if (pp.isCompatibleAndContainedBySinglePath(best_path_vertex_list)) {
+					
+					PasaVertex pv = pasaVerticesSortedArr[pp_to_pasa_vertex_idx.get(pp)];
+					pv.decrement_read_support(best_path_vertex_list);
+					
+					
+				}
+			}
+			
+			for (int i = 0; i < pasaVerticesSortedArr.length; i++) {
+				pasaVerticesSortedArr[i].reset_score_to_adjusted_score();
+			}
+			for (int i = 0; i < pasaVerticesSortedArr.length; i++) {
+				pasaVerticesSortedArr[i].init_PasaVertex_to_and_from_paths();
+			}
+			
+			
+			
+			/*
+			debugMes("Scored paths post decrements", 10);
+			
+			for (int i = 0; i < pasaVerticesSortedArr.length; i++) {
+				pasaVerticesSortedArr[i].init_PasaVertex_to_and_from_paths();
+			}
+			for (int i = 0; i < pasaVerticesSortedArr.length; i++) {
+				debugMes("Post DECREMENT (postreinit) (R" + round + ") : [ " + i + "] ", 10);
+				debugMes(pasaVerticesSortedArr[i].show_from_paths(), 10);
+			}
+			*/
+		
 		
 			//if (round >= 10) { break; }  // testing purposes
 			
@@ -6730,19 +6818,39 @@ HashMap<List<Integer>, Pair<Integer>> transcripts = new HashMap<List<Integer>,Pa
 			DijkstraDistance<SeqVertex, SimpleEdge> dijkstraDis, 
 			Map<PairPath, Integer> pairPathToReadSupport, HashMap<Integer, List<List<Integer>>> tripletMapper, 
 			HashMap<Integer, List<List<Integer>>> extendedTripletMapper, 
-			HashMap<PairPath, Integer> pp_to_pasa_vertex_idx
+			HashMap<PairPath, Integer> pp_to_pasa_vertex_idx,
+			Integer trellis_round
 			) {
 		
 		
+		
+		/*
+		for  (int i = 0; i < pasaVerticesArr.length; i++)  {
+			
+			PasaVertex v = pasaVerticesArr[i];
+			
+			System.out.println("Top of IntraTrellis v: [ " + i + "] ");
+			System.out.println(v.show_from_paths());
+		}	
+		*/
 		
 		for  (int i = 1; i < pasaVerticesArr.length; i++)  {
 			
 			PasaVertex iV = pasaVerticesArr[i];
 			
+			/*
+			System.out.println("IntraTrellis iV: [ " + i + "] ");
+			System.out.println(iV.show_from_paths());
+			*/
+			
 			for (int j = i - 1; j >= 0; j--) {
 				
 				PasaVertex iJ = pasaVerticesArr[j];
 				
+				/*
+				System.out.println("IntraTrellis iJ: [" + j + "] ");
+				System.out.println(iV.show_from_paths());
+				*/
 				
 				// direction j -> i
 				
@@ -6782,7 +6890,7 @@ HashMap<List<Integer>, Pair<Integer>> transcripts = new HashMap<List<Integer>,Pa
 					
 					}
 					if (found_incompatibility) {
-						continue; // this pairpath list will allow for productive extension here.
+						continue; // this pairpath list will not allow for productive extension here.
 					}
 						
 						
@@ -6802,7 +6910,12 @@ HashMap<List<Integer>, Pair<Integer>> transcripts = new HashMap<List<Integer>,Pa
 					extendedList.add(iV);
 					
 					highest_scoring_path_to_extend.path_extended = true;
-					iV.push_fromPaths(new ScoredPath(extendedList, highest_path_score));
+					ScoredPath new_sp = new ScoredPath(extendedList, highest_path_score);
+					iV.push_fromPaths(new_sp);
+					
+					debugMes("trellis (round: " + trellis_round + ") :: Adding a highest scoring path (score=" + 
+							highest_path_score + ") for node: " + iV + "\n" + new_sp.describe_score_calculation(), 20);
+					
 					
 					if (iV.fromPaths.size() >= PasaVertex.max_top_paths_to_store) {
 						break;
@@ -6995,7 +7108,7 @@ HashMap<List<Integer>, Pair<Integer>> transcripts = new HashMap<List<Integer>,Pa
 					iJ.add_containment(iV);
 					
 					containments.put(i, true);
-					debugMes("Containment: " + iV.pp + " is contained by: " + iJ.pp, 10);
+					debugMes("Containment: " + iV.pp + " is contained by: " + iJ.pp, 12);
 				}
 				
 			}
@@ -7368,7 +7481,7 @@ HashMap<List<Integer>, Pair<Integer>> transcripts = new HashMap<List<Integer>,Pa
 			} else {
 				// problem... no direct path from before -> after
 				debugMes("path incompatibility detected between " + pp1 + " and " + pp2 +
-						", no path from " + before_vertex + " to " + after_vertex, 10); 
+						", no path from " + before_vertex + " to " + after_vertex, 15); 
 				return(false);
 			}
 			
@@ -8697,7 +8810,7 @@ HashMap<List<Integer>, Pair<Integer>> transcripts = new HashMap<List<Integer>,Pa
 					continue;
 				
 				if (pairPathArr[i].isCompatibleAndContainedByPairPath(pairPathArr[j])) {
-					debugMes("CONTAINMENT: " + pairPathArr[i] + " is contained by " + pairPathArr[j], 10);
+					debugMes("CONTAINMENT: " + pairPathArr[i] + " is contained by " + pairPathArr[j], 12);
 					containments.add(i);
 				}
 				
@@ -8706,7 +8819,7 @@ HashMap<List<Integer>, Pair<Integer>> transcripts = new HashMap<List<Integer>,Pa
 			
 		}
 		
-		List<Integer> containment_list = new ArrayList(containments);
+		List<Integer> containment_list = new ArrayList<Integer>(containments);
 		
 		return(containment_list);
 		
