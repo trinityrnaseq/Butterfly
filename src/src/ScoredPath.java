@@ -76,8 +76,8 @@ public class ScoredPath {
 		
 		ret_text += "  done backtracking.\n";
 	
-		if (Math.abs(this.pv_path_score - this.tally_score()) > 0.0001) {
-			throw new RuntimeException(ret_text + "\nError, tallied score doesn't match.");
+		if (Math.abs(this.pv_path_score - this.tally_score()) / this.tally_score() > 0.01) {
+			throw new RuntimeException(ret_text + "\nError, tallied score doesn't match stored score.");
 		}
 		
 		return(ret_text);

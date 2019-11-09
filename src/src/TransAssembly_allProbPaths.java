@@ -6296,7 +6296,7 @@ HashMap<List<Integer>, Pair<Integer>> transcripts = new HashMap<List<Integer>,Pa
 		for (int i = 0; i < pasaVerticesSortedArr.length; i++) {
 			pasaVerticesSortedArr[i].init_PasaVertex_to_and_from_paths();
 
-			debugMes("PrePasaFly Score Initialization ([ " + i + "] " + pasaVerticesSortedArr[i].show_from_paths(), 10);
+			debugMes("PrePasaFly Score Initialization ([ " + i + "] " + pasaVerticesSortedArr[i].show_from_paths(), 15);
 		}
 		
 		
