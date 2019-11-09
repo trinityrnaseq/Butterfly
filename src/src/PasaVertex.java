@@ -95,10 +95,30 @@ public class PasaVertex {
 		if (! this.used) {
 			this.used = true;
 		}
+		
+		HashSet<PasaVertex> seen = new HashSet<PasaVertex>();
+		seen.add(this);
+		
 		for (PasaVertex pv : this.contained_PasaVertices) {
-			pv.set_used();
+			
+			pv.set_used(seen);
 		}
 	}
+	
+	public void set_used(HashSet<PasaVertex> seen) {
+		if (! this.used) {
+			this.used = true;
+		}
+		seen.add(this);
+		
+		
+		for (PasaVertex pv : this.contained_PasaVertices) {
+			if (! seen.contains(pv)) {
+				pv.set_used(seen);
+			}
+		}
+	}
+	
 	
 	
 	public boolean is_used() {
