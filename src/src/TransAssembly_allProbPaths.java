@@ -6306,7 +6306,7 @@ HashMap<List<Integer>, Pair<Integer>> transcripts = new HashMap<List<Integer>,Pa
 		while(! finalVertexPositions.isEmpty()) {
 			
 			round += 1;
-			debugMes("pasa round: " + round, 10);
+			debugMes("\n## PasaFly round: " + round, 10);
 			
 			
 			/*
@@ -6330,7 +6330,7 @@ HashMap<List<Integer>, Pair<Integer>> transcripts = new HashMap<List<Integer>,Pa
 			
 			// -------------
 			// Build Trellis
-			debugMes("build_PASA_trellis_left_to_right()", 10);
+			debugMes("build_PASA_trellis_left_to_right( " + pasaVerticesSortedArr.length + " pp )", 10);
 			
 			build_PASA_trellis_left_to_right(pasaVerticesSortedArr, dag, graph, componentReadHash, dijkstraDis, 
 						pairPathToReadSupport, tripletMapper, extendedTripletMapper, pp_to_pasa_vertex_idx, round);
@@ -6844,6 +6844,10 @@ HashMap<List<Integer>, Pair<Integer>> transcripts = new HashMap<List<Integer>,Pa
 			*/
 			
 			for (int j = i - 1; j >= 0; j--) {
+				
+				if (BFLY_GLOBALS.VERBOSE_LEVEL >= 10) {
+					System.err.print("\r[" + i + "," + j + "]       ");
+				}
 				
 				PasaVertex iJ = pasaVerticesArr[j];
 				
