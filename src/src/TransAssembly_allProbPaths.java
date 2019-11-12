@@ -6154,7 +6154,7 @@ HashMap<List<Integer>, Pair<Integer>> transcripts = new HashMap<List<Integer>,Pa
 			
 		}
 		
-		debugMes("Not a sinple linear path.  Exploring more intensive pasafly assembly", 10);
+		debugMes("Not a simple linear path.  Exploring more intensive pasafly assembly", 10);
 		
 		Comparator<PairPath> pairPathOrderComparer = new Comparator<PairPath>() { // sort by first node depth in graph
 			public int compare(PairPath a, PairPath b) {
@@ -6335,6 +6335,11 @@ HashMap<List<Integer>, Pair<Integer>> transcripts = new HashMap<List<Integer>,Pa
 			build_PASA_trellis_left_to_right(pasaVerticesSortedArr, dag, graph, componentReadHash, dijkstraDis, 
 						pairPathToReadSupport, tripletMapper, extendedTripletMapper, pp_to_pasa_vertex_idx, round);
 			
+			/*
+			if (true) {	
+				System.err.println("DEBUGGING: STOP EARLY");
+				return(final_transcripts);
+			} */
 			
 			/*
 			// just for debugging
