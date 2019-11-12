@@ -6389,77 +6389,36 @@ HashMap<List<Integer>, Pair<Integer>> transcripts = new HashMap<List<Integer>,Pa
 				pairPathToReadSupport, tripletMapper, extendedTripletMapper, pp_to_pasa_vertex_idx, round);
 
 		
+		List<ScoredPath> unextended_scored_path_list = new ArrayList<ScoredPath>();
+		
+		for (int i = 0; i < pasaVerticesSortedArr.length; i++) {
+			List<ScoredPath> sp_list = pasaVerticesSortedArr[i].get_fromPaths();
+			for (ScoredPath sp : sp_list) {
+				if (! sp.path_extended) {
+					unextended_scored_path_list.add(sp);
+				}
+			}
+		}
+		
+		
+
+		
+		
 		while(! finalVertexPositions.isEmpty()) {
 			
 			round += 1;
 			debugMes("\n## PasaFly round: " + round, 10);
 			
 			
-			/*
-			debugMes("Pre init score paths:", 10);
-			for (int i = 0; i < pasaVerticesSortedArr.length; i++) {
-				debugMes("Pre REINIT(R" + round + ") : [ " + i + "] ", 10);
-				debugMes(pasaVerticesSortedArr[i].show_from_paths(), 10);
-			}
-			
-			// ---------------------------------
-			// INIT scores for pasafly iteration
-			debugMes("Initing vertex scores", 10);
-			for (int i = 0; i < pasaVerticesSortedArr.length; i++) {
-				pasaVerticesSortedArr[i].init_PasaVertex_to_and_from_paths();
-				
-				debugMes("Post REINIT(R" + round + ") : [ " + i + "] ", 10);
-				debugMes(pasaVerticesSortedArr[i].show_from_paths(), 10);
-			}
-			*/
-			
-			
-			// -------------
-			// Build Trellis
-			/*
-			debugMes("build_PASA_trellis_left_to_right( " + pasaVerticesSortedArr.length + " pp )", 10);
-			
-			build_PASA_trellis_left_to_right(pasaVerticesSortedArr, dag, graph, componentReadHash, dijkstraDis, 
-						pairPathToReadSupport, tripletMapper, extendedTripletMapper, pp_to_pasa_vertex_idx, round);
-			
-			*/
-			
-			/*
-			if (true) {	
-				System.err.println("DEBUGGING: STOP EARLY");
-				return(final_transcripts);
-			} */
-			
-			/*
-			// just for debugging
-			for (int i = 0; i < pasaVerticesSortedArr.length; i++) {
-				debugMes("Post Trellis: R(" + i + ")", 10);
-				debugMes(pasaVerticesSortedArr[i].show_from_paths(), 10);
-			}
-			*/
 			
 			// -------------------------
 			// get highest scoring path:
 			debugMes("Identifying highest scoring PASA path.", 10);
-			ScoredPath best = null;
 			
-			for (int i = 0; i < pasaVerticesSortedArr.length; i++) {
-				//debugMes("evaluating highest scoring path: " + i, 10);
-				ScoredPath sp = pasaVerticesSortedArr[i].get_highest_scoring_fromPath();
-				
-				debugMes("-R" + round + ": evaluating path scores stored at pv: " + pasaVerticesSortedArr[i] + 
-						" stored_score: " + sp.pv_path_score + ", retallied at: " + sp.tally_score(), 20);
-				debugMes(sp.describe_score_calculation(), 20);
-				
-				if (best == null || sp.pv_path_score > best.pv_path_score) {
-					best = sp;
-					debugMes("-R" + round + " best score updated: " + best.pv_path_score + " pv_path: " + best.pv_path, 20);
-
-					debugMes("-best scored path so far = " + sp.pv_path_score + 
-							" (round: " + round + ", iter: " + i + "\n" +
-							sp.describe_score_calculation(), 20);
-				}
-			}
+			Collections.sort(unextended_scored_path_list, ScoredPath.ScoredPathComparer);
+			
+			
+			ScoredPath best = unextended_scored_path_list.get(unextended_scored_path_list.size()-1);
 			
 			//----------------
 			// store best path
@@ -6545,17 +6504,7 @@ HashMap<List<Integer>, Pair<Integer>> transcripts = new HashMap<List<Integer>,Pa
 			
 			
 			
-			/*
-			debugMes("Scored paths post decrements", 10);
 			
-			for (int i = 0; i < pasaVerticesSortedArr.length; i++) {
-				pasaVerticesSortedArr[i].init_PasaVertex_to_and_from_paths();
-			}
-			for (int i = 0; i < pasaVerticesSortedArr.length; i++) {
-				debugMes("Post DECREMENT (postreinit) (R" + round + ") : [ " + i + "] ", 10);
-				debugMes(pasaVerticesSortedArr[i].show_from_paths(), 10);
-			}
-			*/
 		
 		
 			//if (round >= 10) { break; }  // testing purposes

@@ -128,6 +128,23 @@ public class ScoredPath {
 		
 	}
 	
+	
+	public static Comparator<ScoredPath> ScoredPathComparer = new Comparator<ScoredPath>() { // sort by first node depth in graph
+		
+		public int compare(ScoredPath a, ScoredPath b) {
+
+			if (a.pv_path_score < b.pv_path_score) {
+				return(-1);
+			} else if (a.pv_path_score == b.pv_path_score) {
+				return(0);
+			}
+			else {
+				return(1);
+			}
+		}
+	};
+
+	
 }
 
 
