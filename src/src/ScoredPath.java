@@ -121,6 +121,12 @@ public class ScoredPath {
 		
 		return(pp_list);
 	}
+
+
+	public void rescore() {
+		this.pv_path_score = this.tally_score();
+		
+	}
 	
 }
 

@@ -296,6 +296,15 @@ public class PasaVertex {
 		
 		return(ret_text);
 	}
+
+
+
+	public void rescore_from_paths() {
+		for (ScoredPath sp : this.fromPaths) {
+			sp.rescore();
+		}
+		
+	}
 	
 	
 }

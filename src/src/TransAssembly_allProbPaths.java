@@ -6156,6 +6156,9 @@ HashMap<List<Integer>, Pair<Integer>> transcripts = new HashMap<List<Integer>,Pa
 		
 		debugMes("Not a simple linear path.  Exploring more intensive pasafly assembly", 10);
 		
+		
+		
+		/*
 		Comparator<PairPath> pairPathOrderComparer = new Comparator<PairPath>() { // sort by first node depth in graph
 			public int compare(PairPath a, PairPath b) {
 				
@@ -6222,16 +6225,89 @@ HashMap<List<Integer>, Pair<Integer>> transcripts = new HashMap<List<Integer>,Pa
 	
 	};
 	
+	*/
+		Comparator<PairPath> pairPathOrderComparer = new Comparator<PairPath>() { // sort by first node depth in graph
+			public int compare(PairPath a, PairPath b) {
 				
+
+				if (a.equals(b)) {
+					return(0);
+				}
+
+
+				// check last node
+				Integer a_last_index = a.getLastID();
+				Integer b_last_index = b.getLastID();
+
+				if (a_last_index != b_last_index) {
+				
+					int l1 = getSeqVertex(graph,a_last_index)._node_depth;
+					int l2 = getSeqVertex(graph,b_last_index)._node_depth;
+					if (l1 < l2) {
+						return(-1);
+					}
+					else if (l1 > l2) {
+						return(1);
+					}
+
+				}
+				
+
+				// check first node
+
+				Integer a_first_index = a.getFirstID();
+				Integer b_first_index = b.getFirstID();
+
+				if (a_first_index != b_first_index) {
+				
+					int f1 = getSeqVertex(graph, a_first_index)._node_depth;  // from topological sort.
+					int f2 = getSeqVertex(graph, b_first_index)._node_depth;
+					if( f1 < f2 )
+						return -1;
+					else if( f1 > f2 )
+						return 1;
+				}
+				
+				// must have same first and last nodes or same node depths.
+
+
+				// same last node depth too.
+				// compare their node identifiers
+				if (a_last_index < b_last_index)
+					return(-1);
+				else if (a_last_index > b_last_index)
+					return(1);
+
+				// same node depth.
+				if (a_first_index < b_first_index)
+					return -1;
+				else if (a_first_index > b_first_index)
+					return 1;
+
+			
+
+				// default
+				// not the same paths, but same start node and last node DFS, so just order based on hashcode
+				
+				return ( (a.hashCode() < b.hashCode()) ? 1 : -1);
+
+			}
+
+		};
+
 				
 		// sort pairs according to node read depths
 		
 		Collections.sort(pairPathsSortedList, pairPathOrderComparer);
 		
+		
+		
 		if (BFLY_GLOBALS.VERBOSE_LEVEL >= 10) {
 			debugMes("SORTED PAIRPATHS IN ORDER:", 10);
 			for (PairPath p : pairPathsSortedList) {
-				debugMes("\t" + p + " first node=" + p.getFirstID() + ", topo depth: " + getSeqVertex(graph,p.getFirstID())._node_depth + ", count: " + pairPathToReadSupport.get(p), 10);
+				debugMes("\t" + p + " first node=" + p.getFirstID() + 
+						", topo depth: " + getSeqVertex(graph,p.getFirstID())._node_depth + 
+						", count: " + pairPathToReadSupport.get(p), 10);
 			}
 		}
 		
@@ -6302,7 +6378,17 @@ HashMap<List<Integer>, Pair<Integer>> transcripts = new HashMap<List<Integer>,Pa
 		
 		
 		debugMes("Beginning PasaFly Dynamic Programming Alg", 10);
+		
+		
+		// -------------
+		// Build Trellis
+		debugMes("build_PASA_trellis_left_to_right( " + pasaVerticesSortedArr.length + " pp )", 10);
+
 		int round = 0;
+		build_PASA_trellis_left_to_right(pasaVerticesSortedArr, dag, graph, componentReadHash, dijkstraDis, 
+				pairPathToReadSupport, tripletMapper, extendedTripletMapper, pp_to_pasa_vertex_idx, round);
+
+		
 		while(! finalVertexPositions.isEmpty()) {
 			
 			round += 1;
@@ -6330,10 +6416,13 @@ HashMap<List<Integer>, Pair<Integer>> transcripts = new HashMap<List<Integer>,Pa
 			
 			// -------------
 			// Build Trellis
+			/*
 			debugMes("build_PASA_trellis_left_to_right( " + pasaVerticesSortedArr.length + " pp )", 10);
 			
 			build_PASA_trellis_left_to_right(pasaVerticesSortedArr, dag, graph, componentReadHash, dijkstraDis, 
 						pairPathToReadSupport, tripletMapper, extendedTripletMapper, pp_to_pasa_vertex_idx, round);
+			
+			*/
 			
 			/*
 			if (true) {	
@@ -6428,6 +6517,8 @@ HashMap<List<Integer>, Pair<Integer>> transcripts = new HashMap<List<Integer>,Pa
 			final_transcripts.put(best_path_vertex_list, new Pair<Integer>(1,1));
 			
 			
+			
+			
 			//if (true) { continue; }
 			
 			
@@ -6449,7 +6540,7 @@ HashMap<List<Integer>, Pair<Integer>> transcripts = new HashMap<List<Integer>,Pa
 				pasaVerticesSortedArr[i].reset_score_to_adjusted_score();
 			}
 			for (int i = 0; i < pasaVerticesSortedArr.length; i++) {
-				pasaVerticesSortedArr[i].init_PasaVertex_to_and_from_paths();
+				pasaVerticesSortedArr[i].rescore_from_paths();
 			}
 			
 			
@@ -6843,6 +6934,9 @@ HashMap<List<Integer>, Pair<Integer>> transcripts = new HashMap<List<Integer>,Pa
 			
 			PasaVertex iV = pasaVerticesArr[i];
 			
+			
+			SeqVertex iV_first_seqVertex = getSeqVertex(graph, iV.pp.getFirstID());
+			
 			/*
 			System.out.println("IntraTrellis iV: [ " + i + "] ");
 			System.out.println(iV.show_from_paths());
@@ -6855,6 +6949,14 @@ HashMap<List<Integer>, Pair<Integer>> transcripts = new HashMap<List<Integer>,Pa
 				}
 				
 				PasaVertex iJ = pasaVerticesArr[j];
+				
+				SeqVertex iJ_last_seqVertex = getSeqVertex(graph, iJ.pp.getLastID());
+				
+				
+				if (iJ_last_seqVertex._node_depth < iV_first_seqVertex._node_depth) {
+					// additional earlier pp comparisons are futile, no possible overlap
+					break;
+				}
 				
 				/*
 				System.out.println("IntraTrellis iJ: [" + j + "] ");
