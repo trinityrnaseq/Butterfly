@@ -61,6 +61,15 @@ public class TransAssembly_allProbPaths {
 	private static int MIN_READ_SUPPORT_THR = 1;
 	private static int MIN_OUTPUT_SEQ;
 
+	
+	// pasafly params
+	private static int MAX_VERTEX_DISCOVERY_TIME_DIFF_ALLOW_COMPARE = 0; // used in pasafly-mode  //FIXME: should be zero, must investigate
+	private static boolean FAST_PASA = false;
+	private static int MAX_NUM_PATHS_PER_PASA_NODE = 3;
+
+
+	
+	
 	// Paths Too Similar Settings
 	private static int MAX_DIFFS_SAME_PATH = 2;
 	private static int DIFFS_WINDOW_SIZE = 100;
@@ -72,10 +81,7 @@ public class TransAssembly_allProbPaths {
 	private static boolean NO_GRAPH_COMPACTION = false; // also assumes no path merging
 
 	
-	// pasafly params
-	private static int MAX_VERTEX_DISCOVERY_TIME_DIFF_ALLOW_COMPARE = 0; // used in pasafly-mode  //FIXME: should be zero, must investigate
-	private static boolean FAST_PASA = false;
-	private static int MAX_NUM_PATHS_PER_PASA_NODE = 10;
+	
 	
 	// Path alignment settings
 	//	private static int MAX_INTERNAL_GAP_LENGTH = 20; // minimum cassette exon size that might be skipped in an alt-splice variant.
@@ -645,6 +651,7 @@ public class TransAssembly_allProbPaths {
 			
 			System.err.println("# PasaFly related parameters:");
 			System.err.println("#  --PasaFly                              use PASA-style pair path assembly");
+			System.err.println("#  --max_num_paths_per_pasa_node:           max number of extension paths to hold at each pasa vertex (default: " +MAX_NUM_PATHS_PER_PASA_NODE);
 			System.err.println("#  --FAST_PASA                            faster PASA by using a banded-DP strategy (experimental)");
 			System.err.println("#  --NO_NODE_ID_REVERSION                 do not revert node ids to the original node ids prior to overlap graph construction");
 			
@@ -6133,9 +6140,12 @@ HashMap<List<Integer>, Pair<Integer>> transcripts = new HashMap<List<Integer>,Pa
 		Set<PairPath> pairPaths = new HashSet<PairPath>();
 		Map<PairPath, Integer> pairPathToReadSupport = new HashMap<PairPath, Integer>();
 		
+		
+		// ---------------------
+		// populates pair paths
 		populate_pairpaths_and_readsupport(componentReadHash, pairPaths, pairPathToReadSupport);
 		
-		
+		debugMes("Starting with " + pairPaths.size() + " pair paths.", 10);
 		
 		HashMap<List<Integer>, Pair<Integer>> final_transcripts = new HashMap<List<Integer>, Pair<Integer>>();
 		
@@ -6157,75 +6167,6 @@ HashMap<List<Integer>, Pair<Integer>> transcripts = new HashMap<List<Integer>,Pa
 		debugMes("Not a simple linear path.  Exploring more intensive pasafly assembly", 10);
 		
 		
-		
-		/*
-		Comparator<PairPath> pairPathOrderComparer = new Comparator<PairPath>() { // sort by first node depth in graph
-			public int compare(PairPath a, PairPath b) {
-				
-				
-				if (a.equals(b)) {
-					return(0);
-				}
-				
-				// check first node
-				
-				//----------------------
-				// use node depth in graph
-				//----------------------
-				
-				// check first node
-
-			Integer a_index = a.getFirstID();
-			Integer b_index = b.getFirstID();
-
-			int f1 = getSeqVertex(graph, a_index)._node_depth;  // from topological sort.
-			int f2 = getSeqVertex(graph, b_index)._node_depth;
-			if( f1 < f2 )
-				return -1;
-			else if( f1 > f2 )
-				return 1;
-
-			// same node depth.
-			if (a_index < b_index)
-				return -1;
-			else if (a_index > b_index)
-				return 1;
-			
-			// if here, 
-			// same first node ID
-			
-		
-			
-			// check last node
-			Integer a_last_index = a.getLastID();
-			Integer b_last_index = b.getLastID();
-
-			int l1 = getSeqVertex(graph,a_last_index)._node_depth;
-			int l2 = getSeqVertex(graph,b_last_index)._node_depth;
-			if (l1 < l2) {
-				return(-1);
-			}
-			else if (l1 > l2) {
-				return(1);
-			}
-			
-			// same last node depth too.
-			// compare their node identifiers
-			if (a_last_index < b_last_index)
-				return(-1);
-			else if (a_last_index > b_last_index)
-				return(1);
-			
-			
-			// default
-			// not the same paths, but same start node and last node DFS, so just order based on hashcode
-			return ( (a.hashCode() < b.hashCode()) ? 1 : -1);
-				
-		}
-	
-	};
-	
-	*/
 		Comparator<PairPath> pairPathOrderComparer = new Comparator<PairPath>() { // sort by first node depth in graph
 			public int compare(PairPath a, PairPath b) {
 				
@@ -6312,7 +6253,7 @@ HashMap<List<Integer>, Pair<Integer>> transcripts = new HashMap<List<Integer>,Pa
 		}
 		
 		//-------------------------------------
-		// populate PASA Vertices sorted list
+		// populate PASA Vertices sorted list   - use Pasa Vertices from here down.
 		//-------------------------------------
 		
 		ArrayList<PasaVertex> pasaVerticesSortedList = new ArrayList<PasaVertex>();
@@ -6321,49 +6262,57 @@ HashMap<List<Integer>, Pair<Integer>> transcripts = new HashMap<List<Integer>,Pa
 			pasaVerticesSortedList.add(new PasaVertex(pp, count));
 		}
 		
-		// using arrays now instead of ArrayList objects
-		PasaVertex [] pasaVerticesSortedArr = pasaVerticesSortedList.toArray(new PasaVertex[pasaVerticesSortedList.size()]);
-		PairPath[] pairPathsSortedArr = pairPathsSortedList.toArray(new PairPath[pairPathsSortedList.size()]);
-		
+		pairPathsSortedList = null; // use no more!!  use Pasa Vertices instead.
 		
 		debugMes("Assigning pairpath containments.", 10);
-		assignPasaPairPathContainments(graph, dijkstraDis, pasaVerticesSortedArr); // vertices updated to include containment info.
+		HashSet<PasaVertex> purely_contained_pasa_vertices = assignPasaPairPathContainments(graph, dijkstraDis, pasaVerticesSortedList); // vertices updated to include containment info.
 
+		debugMes("Found " + purely_contained_pasa_vertices.size() + " purely contained pasa vertices, must be removed before trellis build", 10);
+		
+		if (purely_contained_pasa_vertices.size() > 0) {
+			pasaVerticesSortedList.removeAll(purely_contained_pasa_vertices);
+		}
+		
+		
+		// using arrays now instead of ArrayList objects
+		PasaVertex [] pasaVerticesSortedArr = pasaVerticesSortedList.toArray(new PasaVertex[pasaVerticesSortedList.size()]);
+		
 		
 		//------------------------------------------------
 	
+	
 		
-		boolean[][] dag = getPASA_PairPathConsistencyDAG(graph, dijkstraDis, pairPathsSortedArr);
+		boolean[][] compatibility_dag = getPASA_PairPathConsistencyDAG(graph, dijkstraDis, pasaVerticesSortedArr);
+		
+		
+		boolean[][] node_in_common_2d = getPASA_PairNodeInCommon2d(pasaVerticesSortedArr);
 		
 		
 		if (BFLY_GLOBALS.VERBOSE_LEVEL >= 10) {
 			debugMes("PASA Consistency DAG--------------------------\n", 10);
 
-			System.out.println(boolean_matrix_toString(dag));
+			System.out.println(boolean_matrix_toString(compatibility_dag));
 		}
 
 
 			
 	
 		// track the final vertex identifiers
-		HashMap<PairPath,Integer> finalVertexPositions = new HashMap<PairPath,Integer>();
-		for (int i = 0; i < pairPathsSortedArr.length; i++) {
-			finalVertexPositions.put(pairPathsSortedArr[i], i);
+		
+		for (int i = 0; i < pasaVerticesSortedArr.length; i++) {
+			pasaVerticesSortedArr[i].idx = i;
 		}
 
 		
 		
 		
-		
-		HashMap<PairPath,Integer> pp_to_pasa_vertex_idx = new HashMap<PairPath,Integer>();
+		if (BFLY_GLOBALS.VERBOSE_LEVEL >= 10) {
+			debugMes("Ordered pair paths and counts prior to pasafly path extraction:", 10);
+			for (int i = 0; i < pasaVerticesSortedArr.length; i++) {
+				PairPath pp = pasaVerticesSortedArr[i].pp;
+				debugMes(pp + " count: " + pairPathToReadSupport.get(pp), 10);
 
-		debugMes("Ordered pair paths and counts prior to pasafly path extraction:", 10);
-		for (int i = 0; i < pasaVerticesSortedArr.length; i++) {
-			PairPath pp = pasaVerticesSortedArr[i].pp;
-			pp_to_pasa_vertex_idx.put(pp, i);
-
-			debugMes(pp + " count: " + pairPathToReadSupport.get(pp), 10);
-
+			}
 		}
 		
 		// ---------------------------------
@@ -6380,14 +6329,16 @@ HashMap<List<Integer>, Pair<Integer>> transcripts = new HashMap<List<Integer>,Pa
 		debugMes("Beginning PasaFly Dynamic Programming Alg", 10);
 		
 		
-		// -------------
-		// Build Trellis
+		// --------------------------------------
+		// Build Trellis   ----------------------
 		debugMes("build_PASA_trellis_left_to_right( " + pasaVerticesSortedArr.length + " pp )", 10);
 
 		int round = 0;
-		build_PASA_trellis_left_to_right(pasaVerticesSortedArr, dag, graph, componentReadHash, dijkstraDis, 
-				pairPathToReadSupport, tripletMapper, extendedTripletMapper, pp_to_pasa_vertex_idx, round);
-
+		build_PASA_trellis_left_to_right(pasaVerticesSortedArr, compatibility_dag, node_in_common_2d, graph);
+		
+		// --- end of trellis building ------------
+		// ----------------------------------------
+		
 		
 		List<ScoredPath> unextended_scored_path_list = new ArrayList<ScoredPath>();
 		
@@ -6401,7 +6352,13 @@ HashMap<List<Integer>, Pair<Integer>> transcripts = new HashMap<List<Integer>,Pa
 		}
 		
 		
-
+		 // track the final vertex identifiers
+        HashSet<PasaVertex> finalVertexPositions = new HashSet<PasaVertex>();
+        for (int i = 0; i < pasaVerticesSortedArr.length; i++) {
+                finalVertexPositions.add(pasaVerticesSortedArr[i]);
+                
+                debugMes(pasaVerticesSortedArr[i].report_stored_scored_path_content(), 10);
+        }
 		
 		
 		while(! finalVertexPositions.isEmpty()) {
@@ -6443,26 +6400,26 @@ HashMap<List<Integer>, Pair<Integer>> transcripts = new HashMap<List<Integer>,Pa
 			}
 					
 			// remove those pairpaths included in the best path
-			List<PairPath> toRemove = new ArrayList<PairPath>();
-			for (PairPath pp : finalVertexPositions.keySet()) {
+			List<PasaVertex> toRemove = new ArrayList<PasaVertex>();
+			for (PasaVertex pv : finalVertexPositions) {
 				
-				if (pp.isCompatibleAndContainedBySinglePath(best_path_vertex_list))
-					toRemove.add(pp);
+				if (pv.pp.isCompatibleAndContainedBySinglePath(best_path_vertex_list))
+					toRemove.add(pv);
 				
 			}
 			
 			boolean all_already_used = true;
 			
 			debugMes("Num paths to remove:" + toRemove.size(), 10);
-			for (PairPath pp : toRemove) {
-				finalVertexPositions.remove(pp);
+			for (PasaVertex pv : toRemove) {
+				finalVertexPositions.remove(pv);
 				
-				if (! pasaVerticesSortedArr[pp_to_pasa_vertex_idx.get(pp)].is_used()) {
+				if (! pv.is_used()) {
 					all_already_used = false;
-					pasaVerticesSortedArr[pp_to_pasa_vertex_idx.get(pp)].set_used();
+					pv.set_used();
 				}	
 			}
-			toRemove.clear();
+			
 			
 	
 			
@@ -6484,16 +6441,24 @@ HashMap<List<Integer>, Pair<Integer>> transcripts = new HashMap<List<Integer>,Pa
 			// -----------------------------------------------
 			// Decrement read support for contained pair paths
 			debugMes("Decrementing read support for contained pair paths", 10);
-			for (int i = 0; i < pairPathsSortedArr.length; i++) {
-				PairPath pp = pairPathsSortedArr[i];
-				if (pp.isCompatibleAndContainedBySinglePath(best_path_vertex_list)) {
-					
-					PasaVertex pv = pasaVerticesSortedArr[pp_to_pasa_vertex_idx.get(pp)];
-					pv.decrement_read_support(best_path_vertex_list);
-					
-					
+			HashSet<PasaVertex> already_decremented = new HashSet<PasaVertex>();
+			for (PasaVertex pv : toRemove) {
+				pv.decrement_read_support(best_path_vertex_list);
+				already_decremented.add(pv);
+			}
+			
+			// decrement for those contained paths that haven't been seen yet.
+			for (PasaVertex pv : toRemove) {
+				for (PasaVertex cv : pv.contained_PasaVertices) {
+					if (! already_decremented.contains(cv)) {
+						cv.decrement_read_support(best_path_vertex_list);
+						already_decremented.add(cv);
+					}
 				}
 			}
+			
+			toRemove.clear();
+			
 			
 			for (int i = 0; i < pasaVerticesSortedArr.length; i++) {
 				pasaVerticesSortedArr[i].reset_score_to_adjusted_score();
@@ -6503,10 +6468,6 @@ HashMap<List<Integer>, Pair<Integer>> transcripts = new HashMap<List<Integer>,Pa
 			}
 			
 			
-			
-			
-		
-		
 			//if (round >= 10) { break; }  // testing purposes
 			
 			
@@ -6833,6 +6794,44 @@ HashMap<List<Integer>, Pair<Integer>> transcripts = new HashMap<List<Integer>,Pa
 	}
 */
 
+	private static boolean[][] getPASA_PairNodeInCommon2d(PasaVertex[] pasaVerticesSortedArr) {
+		
+		debugMes("getPASA_PairNodeInCommon2d:", 10);
+		
+		boolean[][] node_in_common = new boolean[pasaVerticesSortedArr.length][pasaVerticesSortedArr.length];
+		
+		for (boolean[] row : node_in_common)
+		    Arrays.fill(row, false); // init to no connection.
+		
+		
+		// i -> j
+	
+		for (int i = 0; i < pasaVerticesSortedArr.length-1; i++)
+		{
+			
+			PairPath pp_i = pasaVerticesSortedArr[i].pp;
+			
+			 
+			for (int j = i + 1; j < pasaVerticesSortedArr.length; j++)
+			{
+				
+				PairPath pp_j = pasaVerticesSortedArr[j].pp;
+				
+				boolean have_node_in_common = pp_i.haveAnyNodeInCommon(pp_j);
+				
+				node_in_common[i][j] = node_in_common[j][i] = have_node_in_common;
+			}
+		}
+		
+		
+		return(node_in_common);
+				
+				
+	}
+
+
+
+
 	private static int get_PairPath_seq_length(PairPath pp, DirectedSparseGraph<SeqVertex, SimpleEdge> graph) {
 		
 		int seq_length = 0;
@@ -6857,46 +6856,28 @@ HashMap<List<Integer>, Pair<Integer>> transcripts = new HashMap<List<Integer>,Pa
 
 	private static void build_PASA_trellis_left_to_right(
 			PasaVertex[] pasaVerticesArr, 
-			boolean[][] dag,
-			final DirectedSparseGraph<SeqVertex, SimpleEdge> graph,
-			HashMap<Integer, HashMap<PairPath, Integer>> componentReadHash,
-			DijkstraDistance<SeqVertex, SimpleEdge> dijkstraDis, 
-			Map<PairPath, Integer> pairPathToReadSupport, HashMap<Integer, List<List<Integer>>> tripletMapper, 
-			HashMap<Integer, List<List<Integer>>> extendedTripletMapper, 
-			HashMap<PairPath, Integer> pp_to_pasa_vertex_idx,
-			Integer trellis_round
+			boolean[][] compatibility_dag,
+			boolean[][] node_in_common_2d,
+			final DirectedSparseGraph<SeqVertex, SimpleEdge> graph
 			) {
 		
 		
 		
-		/*
-		for  (int i = 0; i < pasaVerticesArr.length; i++)  {
-			
-			PasaVertex v = pasaVerticesArr[i];
-			
-			System.out.println("Top of IntraTrellis v: [ " + i + "] ");
-			System.out.println(v.show_from_paths());
-		}	
-		*/
+	
 		
 		for  (int i = 1; i < pasaVerticesArr.length; i++)  {
+			
+			
 			
 			PasaVertex iV = pasaVerticesArr[i];
 			
 			
 			SeqVertex iV_first_seqVertex = getSeqVertex(graph, iV.pp.getFirstID());
 			
-			/*
-			System.out.println("IntraTrellis iV: [ " + i + "] ");
-			System.out.println(iV.show_from_paths());
-			*/
+			
 			
 			for (int j = i - 1; j >= 0; j--) {
-				
-				if (BFLY_GLOBALS.VERBOSE_LEVEL >= 10) {
-					System.err.print("\r[" + i + "," + j + "]       ");
-				}
-				
+	
 				PasaVertex iJ = pasaVerticesArr[j];
 				
 				SeqVertex iJ_last_seqVertex = getSeqVertex(graph, iJ.pp.getLastID());
@@ -6907,34 +6888,37 @@ HashMap<List<Integer>, Pair<Integer>> transcripts = new HashMap<List<Integer>,Pa
 					break;
 				}
 				
-				/*
-				System.out.println("IntraTrellis iJ: [" + j + "] ");
-				System.out.println(iV.show_from_paths());
-				*/
-				
 				// direction j -> i
 				
-				
-				if (! dag[j][i]) {
+				if (! compatibility_dag[j][i]) {
 					// incompatible
 					continue;
 					
 				}
 				
 				// require that they share a node in common
-				if (! iJ.pp.haveAnyNodeInCommon(iV.pp))
+				
+				if (! node_in_common_2d[j][i]) {
 					continue;
+				}
 				
 			
 				// see if we can extend paths in iJ to include pairpath represented by iV
 				
 				final List<ScoredPath> sp_list = iJ.get_fromPaths();
 				
+				if (sp_list.size() > PasaVertex.max_top_paths_to_store) {
+					throw new RuntimeException("Error, too many paths stored at " + iJ + ", shouldn't happen!");
+				}
+				
 				float highest_path_score = 0;
 				ScoredPath highest_scoring_path_to_extend = null;
 				
+				int sp_counter = 0;
 				
 				for (ScoredPath sp : sp_list) {
+					
+					sp_counter += 1;
 					
 					
 					// ensure there are no incompatibilities with existing path components.
@@ -6942,22 +6926,28 @@ HashMap<List<Integer>, Pair<Integer>> transcripts = new HashMap<List<Integer>,Pa
 					
 					// walk scored path list in reverse (from rend to lend)
 					for (int z = sp.pv_path.size() -1; z >= 0; z--) {
+						
+						if (BFLY_GLOBALS.VERBOSE_LEVEL >= 10) {
+							System.err.print("\r[" + i + "," + j + "," + sp_counter + "," + z +  "]       ");
+						}
+						
 						PasaVertex pv = sp.pv_path.get(z);
 					
-					//for (PasaVertex pv : sp.pv_path) {
-						int pp_idx = pp_to_pasa_vertex_idx.get(pv.pp);
-						if (! dag[pp_idx][i]) {
+						//for (PasaVertex pv : sp.pv_path) {
+						//int pp_idx = pp_to_pasa_vertex_idx.get(pv.pp);
+						int pp_idx = pv.idx;
+						if (! compatibility_dag[pp_idx][i]) {
 							// sorry, breaks compatibility with earlier pp in chain
 							found_incompatibility = true;
 							break;
-							
+
 						}
 						// not incompatible
 						// if end node of pp_idx precedes first node of iV, we can short circuit this test 
 						//  as all other preceding paths in this scored path should also be compatible.
 						SeqVertex pv_last_seqVertex = getSeqVertex(graph, pv.pp.getLastID());
 						if (pv_last_seqVertex._node_depth < iV_first_seqVertex._node_depth) {
-							//break;
+							break;
 						}
 					
 					}
@@ -6968,7 +6958,7 @@ HashMap<List<Integer>, Pair<Integer>> transcripts = new HashMap<List<Integer>,Pa
 						
 					float extendedPathScore = sp.compute_extension_score(iV);
 
-					if (extendedPathScore > highest_path_score) { // && ! violates_triplet_support(tripletMapper, extendedList)) {
+					if (extendedPathScore > highest_path_score) { 
 						highest_path_score = extendedPathScore;
 						highest_scoring_path_to_extend = sp;
 
@@ -6977,20 +6967,15 @@ HashMap<List<Integer>, Pair<Integer>> transcripts = new HashMap<List<Integer>,Pa
 				}
 				if (highest_scoring_path_to_extend != null) {
 					
-					List<PasaVertex> extendedList = new ArrayList<PasaVertex>();
-					extendedList.addAll(highest_scoring_path_to_extend.pv_path);
-					extendedList.add(iV);
+					ScoredPath new_sp = iV.add_path_extension(highest_scoring_path_to_extend, highest_path_score);
 					
-					highest_scoring_path_to_extend.path_extended = true;
-					ScoredPath new_sp = new ScoredPath(extendedList, highest_path_score);
-					iV.push_fromPaths(new_sp);
-					
-					debugMes("trellis (round: " + trellis_round + ") :: Adding a highest scoring path (score=" + 
+					debugMes("pasafly trellis :: Adding a highest scoring path (score=" + 
 							highest_path_score + ") for node: " + iV + "\n" + new_sp.describe_score_calculation(), 20);
 					
 					
 					if (iV.fromPaths.size() >= PasaVertex.max_top_paths_to_store) {
-						break;
+						// heuristic for efficiency
+						//break;
 					}
 				}
 
@@ -7148,49 +7133,68 @@ HashMap<List<Integer>, Pair<Integer>> transcripts = new HashMap<List<Integer>,Pa
 	}
 	
 
-	private static List<Integer> assignPasaPairPathContainments(
+	private static HashSet<PasaVertex> assignPasaPairPathContainments(
 			DirectedSparseGraph<SeqVertex, SimpleEdge> graph, 
 			DijkstraDistance<SeqVertex, SimpleEdge> dijkstraDis,
-			PasaVertex[] pasaVerticesArr
+			ArrayList<PasaVertex> pasaVerticesSortedList
 			
 			) {
 		
 		
 		
-		HashMap<Integer,Boolean> containments = new HashMap<Integer,Boolean>();
+		HashSet<PasaVertex> containments = new HashSet<PasaVertex>();
+		HashSet<PasaVertex> involve_noncontainment_compatibilities = new HashSet<PasaVertex>();
 		
-		for (int i = 0; i < pasaVerticesArr.length; i++) {
+		for (int i = 0; i < pasaVerticesSortedList.size() -1; i++) {
 			
-			PasaVertex iV = pasaVerticesArr[i];
+			PasaVertex iV = pasaVerticesSortedList.get(i);
 			
-			for (int j = 0; j < pasaVerticesArr.length; j++) {
+			for (int j = i+1; j < pasaVerticesSortedList.size(); j++) {
 				
-				if (i==j)
-					continue;
+				
 					
-				PasaVertex iJ = pasaVerticesArr[j];
+				PasaVertex iJ = pasaVerticesSortedList.get(j);
 		
+				
 				if (iJ.pp.isCompatible(iV.pp)) {
+					// we know they overlap, share a node in common, and have no conflicts.
+					
+					
+					// need this for path re-scoring / decrementing in subsequent pasafly rounds
 					iJ.overlapping_compatible_PasaVertices.add(iV);
 					iV.overlapping_compatible_PasaVertices.add(iJ);
-				}
-				
-				if (iJ.pp.haveAnyNodeInCommon(iV.pp) && (iV.pp.isCompatibleAndContainedByPairPath(iJ.pp, graph, dijkstraDis))) {
-						
-					iJ.add_containment(iV);
 					
-					containments.put(i, true);
-					debugMes("Containment: " + iV.pp + " is contained by: " + iJ.pp, 12);
+					
+					
+					// check if iV contains iJ
+					if (iV.pp.isCompatibleAndContainedByPairPath(iJ.pp, graph, dijkstraDis)) {
+						
+						// iV is contained by iJ
+						iJ.add_containment(iV);
+						containments.add(iV);
+						debugMes("Containment: " + iV.pp + " is contained by: " + iJ.pp, 12);
+						
+					} else if (iJ.pp.isCompatibleAndContainedByPairPath(iV.pp, graph, dijkstraDis)) {
+						// iJ is contained by iV
+						iV.add_containment(iJ);
+						containments.add(iJ);
+						debugMes("Containment: " + iJ.pp + " is contained by: " + iV.pp, 12);
+					} else {
+						// they are overlapping and compatible but neither contains the other.
+						// these are not in pure containment situations.
+						involve_noncontainment_compatibilities.add(iJ);
+						involve_noncontainment_compatibilities.add(iV);
+					}
 				}
-				
 			}
 			
 			
 		}
 		
-		List<Integer> containment_list = new ArrayList<Integer>(containments.keySet());
 		
-		return(containment_list);
+		containments.removeAll(involve_noncontainment_compatibilities);
+		
+		return(containments);
 		
 	}
 
@@ -8215,12 +8219,12 @@ HashMap<List<Integer>, Pair<Integer>> transcripts = new HashMap<List<Integer>,Pa
 	private static boolean[][] getPASA_PairPathConsistencyDAG(
 			DirectedSparseGraph<SeqVertex, SimpleEdge> graph, 
 			DijkstraDistance<SeqVertex, SimpleEdge> dijkstraDis,
-			PairPath[] pairPathArr)
+			PasaVertex[] pasaVerticesSortedArr)
 	{
 		
 		debugMes("getPairPathDAG:", 10);
 		
-		boolean[][] dag = new boolean[pairPathArr.length][pairPathArr.length];
+		boolean[][] dag = new boolean[pasaVerticesSortedArr.length][pasaVerticesSortedArr.length];
 		
 		for (boolean[] row : dag)
 		    Arrays.fill(row, false); // init to no connection.
@@ -8228,18 +8232,18 @@ HashMap<List<Integer>, Pair<Integer>> transcripts = new HashMap<List<Integer>,Pa
 		
 		// i -> j
 	
-		for (int i = 0; i < pairPathArr.length-1; i++)
+		for (int i = 0; i < pasaVerticesSortedArr.length-1; i++)
 		{
 			
-			PairPath pp_i = pairPathArr[i];
+			PairPath pp_i = pasaVerticesSortedArr[i].pp;
 			
 			
 			boolean tooFar = false;
 			 
-			for (int j = i + 1; j < pairPathArr.length; j++)
+			for (int j = i + 1; j < pasaVerticesSortedArr.length; j++)
 			{
 				
-				PairPath pp_j = pairPathArr[j];
+				PairPath pp_j = pasaVerticesSortedArr[j].pp;
 				
 				
 				 boolean compatible = isPASA_CompatibleORdirectionallyConsistent(pp_i, pp_j, graph, dijkstraDis);

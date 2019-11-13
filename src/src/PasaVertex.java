@@ -7,6 +7,7 @@ public class PasaVertex {
 	Float readSupport = 0f; // original read support, also used in path scoring.
 	Float adjustedReadSupport = 0f; // this gets adjusted after path extractions
 	
+	int idx; // set after sorting in a list, for convenience.
 	
 	public static int max_top_paths_to_store = 1;
 	
@@ -15,11 +16,11 @@ public class PasaVertex {
 	
 	List<PasaVertex> contained_PasaVertices;
 	
-	HashSet<PasaVertex> overlapping_compatible_PasaVertices;
+	HashSet<PasaVertex> overlapping_compatible_PasaVertices; // needed for decrementing / path re-scoring
 	
 	boolean used = false;
 	
-	private Comparator<ScoredPath> sp_comparator = new Comparator<ScoredPath>() {
+	private static Comparator<ScoredPath> sp_comparator = new Comparator<ScoredPath>() {
 		
 		public int compare (ScoredPath spA, ScoredPath spB) {
 			
@@ -155,14 +156,47 @@ public class PasaVertex {
 	}
 	
 	
-	private void push_path_list (List<ScoredPath> sp_list, ScoredPath sp) {
+	
+	private static void push_path_list (List<ScoredPath> sp_list, ScoredPath sp) {
 	
 		//System.out.println("SP_LIST size before: " + sp_list.size());
+		
+		
+		HashSet<Integer> sp_nodeset = sp.get_unique_nodeset();
+		
+		List<ScoredPath> sp_list_copy = new ArrayList<ScoredPath>(sp_list);
+		
+		// first see if there's already a path in there with the same node set but a lower score
+		for (ScoredPath existing_sp : sp_list_copy) {
+			if (existing_sp.get_unique_nodeset().equals( sp_nodeset )) {
+				if (existing_sp.pv_path_score < sp.pv_path_score) {
+					// found a better one.  replacing it:
+					if (BFLY_GLOBALS.VERBOSE_LEVEL >= 15) { 
+						System.err.println("Replacing " + existing_sp + " with " + sp + " which has the same node set but higher path score");
+					}
+					
+					sp_list.remove(existing_sp);
+					sp_list.add(sp);
+					return;
+				} else {
+					// same node set, but not an improvement in path score. Keeping original one.
+					if (BFLY_GLOBALS.VERBOSE_LEVEL >= 15) { 
+						System.err.println("" + sp + " has same node set but lower score, not adding to set of scored paths");
+					}
+					return;
+				}
+			}
+			
+		}
+		
+		// node set doesn't exist already.  Let's add a new one.
+		
+		
 		
 		sp_list.add(sp);
 		
 		if (sp_list.size() > PasaVertex.max_top_paths_to_store) {
-			Collections.sort(sp_list, this.sp_comparator);
+			Collections.sort(sp_list, sp_comparator);
 		
 			sp_list.retainAll(sp_list.subList(0, max_top_paths_to_store));
 		}
@@ -170,6 +204,7 @@ public class PasaVertex {
 		//System.out.println("SP_LIST size after: " + sp_list.size());
 	
 	}
+	
 	
 	
 	/*
@@ -304,6 +339,33 @@ public class PasaVertex {
 			sp.rescore();
 		}
 		
+	}
+
+
+
+	public ScoredPath add_path_extension(ScoredPath path_to_extend, float cumulative_path_score) {
+		
+		
+		ScoredPath new_sp = new ScoredPath(path_to_extend, this, cumulative_path_score);
+		
+		this.push_fromPaths(new_sp);
+		
+		path_to_extend.path_extended = true;
+		
+		return(new_sp);
+	}
+
+
+
+	public String report_stored_scored_path_content() {
+		
+		String ret = "pv idx: " + this.idx + " " + this.toString() + "\n";
+		
+		for (ScoredPath sp : this.fromPaths) {
+			ret += sp.unique_nodeset_description() + "\n";
+		}
+		
+		return(ret);
 	}
 	
 	
