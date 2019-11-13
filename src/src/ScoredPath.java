@@ -135,11 +135,14 @@ public class ScoredPath {
 
 			if (a.pv_path_score < b.pv_path_score) {
 				return(-1);
-			} else if (a.pv_path_score == b.pv_path_score) {
+			} else if (a.pv_path_score.equals(b.pv_path_score)) {
 				return(0);
 			}
-			else {
+			else if (a.pv_path_score > b.pv_path_score) {
 				return(1);
+			}
+			else {
+				throw new RuntimeException("Error, couldn't do a proper comparison between scored paths"); // shouldn't ever get here.
 			}
 		}
 	};

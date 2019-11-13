@@ -6935,17 +6935,29 @@ HashMap<List<Integer>, Pair<Integer>> transcripts = new HashMap<List<Integer>,Pa
 				
 				
 				for (ScoredPath sp : sp_list) {
-					// is there sufficient read support for extending this path?
+					
 					
 					// ensure there are no incompatibilities with existing path components.
 					boolean found_incompatibility = false;
-					for (PasaVertex pv : sp.pv_path) {
+					
+					// walk scored path list in reverse (from rend to lend)
+					for (int z = sp.pv_path.size() -1; z >= 0; z--) {
+						PasaVertex pv = sp.pv_path.get(z);
+					
+					//for (PasaVertex pv : sp.pv_path) {
 						int pp_idx = pp_to_pasa_vertex_idx.get(pv.pp);
 						if (! dag[pp_idx][i]) {
 							// sorry, breaks compatibility with earlier pp in chain
 							found_incompatibility = true;
 							break;
 							
+						}
+						// not incompatible
+						// if end node of pp_idx precedes first node of iV, we can short circuit this test 
+						//  as all other preceding paths in this scored path should also be compatible.
+						SeqVertex pv_last_seqVertex = getSeqVertex(graph, pv.pp.getLastID());
+						if (pv_last_seqVertex._node_depth < iV_first_seqVertex._node_depth) {
+							//break;
 						}
 					
 					}
