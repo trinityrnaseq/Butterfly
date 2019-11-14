@@ -65,7 +65,7 @@ public class TransAssembly_allProbPaths {
 	// pasafly params
 	private static int MAX_VERTEX_DISCOVERY_TIME_DIFF_ALLOW_COMPARE = 0; // used in pasafly-mode  //FIXME: should be zero, must investigate
 	private static boolean FAST_PASA = false;
-	private static int MAX_NUM_PATHS_PER_PASA_NODE = 3;
+	private static int MAX_NUM_PATHS_PER_PASA_NODE = 1000; // large number by default - effectively all in most circumstances
 
 
 	
@@ -826,10 +826,10 @@ public class TransAssembly_allProbPaths {
 			dfs.runDFS2();
 			
 			
-			if (createMiddleDotFiles)
+			if (createMiddleDotFiles) {
 				writeDotFile(graph,file + "_compactLinearPaths_init.C.dot",graphName, false);
-		
-			
+				writeNodeSeqFile(graph, file+"_compactLinearPaths_init.C.seqinfo");
+			}
 			
 		}
 		
@@ -13244,6 +13244,42 @@ HashMap<List<Integer>, Pair<Integer>> transcripts = new HashMap<List<Integer>,Pa
 	}
 
 
+	private static void writeNodeSeqFile(
+			DirectedSparseGraph<SeqVertex, SimpleEdge> graph,
+			String output_filename) throws Exception {
+		
+		PrintStream p = new PrintStream(new FileOutputStream(output_filename));
+		
+		
+		for (SeqVertex vertex : graph.getVertices())
+		{ //go over all vertices
+
+
+			
+
+			String verDesc = ""+vertex.getID()+" [label=\"";
+			verDesc = verDesc.concat(""+vertex.getShortSeqWID() + "[L:"+vertex.getNameKmerAdj().length()+"]\"");
+			verDesc = verDesc.concat("]");
+			verDesc = verDesc.concat("\t" + vertex.getNameKmerAdj());
+			
+			if (!vertex.equals(T_VERTEX) && !vertex.equals(ROOT))
+				p.println(verDesc);
+
+
+			for (SimpleEdge edge : graph.getOutEdges(vertex)) //get all edges of vertex->?
+			{
+				SeqVertex toVertex = graph.getDest(edge);
+				if (!toVertex.equals(T_VERTEX) && !vertex.equals(ROOT))
+					p.println(vertex.getID() + "->" + toVertex.getID());
+
+			}
+		}
+		
+		p.close();
+		
+	}
+	
+	
 	private static void writeDotFile(DirectedSparseGraph<SeqVertex, SimpleEdge> graph,
 			String output_filename, String graphname, boolean printFullSeq) throws Exception
 	{
@@ -13276,7 +13312,7 @@ HashMap<List<Integer>, Pair<Integer>> transcripts = new HashMap<List<Integer>,Pa
 	 * @param vertices which vertices to print
 	 */
 	private static void writeDotFile(DirectedSparseGraph<SeqVertex, SimpleEdge> graph,
-			PrintStream p, String name,boolean printFullSeq)
+			PrintStream p, String name, boolean printFullSeq)
 	{
 
 		SeqVertex.set_graph(graph);
