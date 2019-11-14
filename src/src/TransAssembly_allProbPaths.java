@@ -772,9 +772,11 @@ public class TransAssembly_allProbPaths {
 		//boolean createMiddleDotFiles = false;
 		boolean createMiddleDotFiles = GENERATE_MIDDLE_DOT_FILES;
 
+		/*  too big to be useful in most cases
 		if (createMiddleDotFiles) 
 			writeDotFile(graph,file + "_deBruijn.A.dot", graphName, false);
 	
+		*/
 		
 		// remember the original edge weights so we can relabel them later on in the final graph according to orig ids.
 		HashMap<String,Double> original_edge_weights_using_orig_kmers = new HashMap<String,Double>();
@@ -1627,6 +1629,8 @@ public class TransAssembly_allProbPaths {
 			String graphName, boolean createMiddleDotFiles) {
 		
 	
+		
+		// from the combinedReadHash, populate pairPaths and pairPathToReadSupport
 		Set<PairPath> pairPaths = new HashSet<PairPath>();
 		Map<PairPath, Integer> pairPathToReadSupport = new HashMap<PairPath, Integer>();
 
@@ -1660,7 +1664,7 @@ public class TransAssembly_allProbPaths {
 
 		});
 
-		Collections.reverse(paths); // want descending by path l
+		Collections.reverse(paths); // want descending by path length
 
 		//////////////////////////////
 		// remove the contained reads
@@ -1956,7 +1960,7 @@ public class TransAssembly_allProbPaths {
 
 		}
 
-		debugMes("Old-to-new-path mappings: " + old_to_new_path, 15);
+		debugMes("\n# Old-to-new-path mappings: " + old_to_new_path, 15);
 		
 		
 		
@@ -1983,12 +1987,13 @@ public class TransAssembly_allProbPaths {
 			List<Integer> p1 = pp.getPath1();
 			if (old_to_new_path.containsKey(p1)) {
 				p1_list.add(old_to_new_path.get(p1));
+				debugMes("remapping of p1: " + p1 + " mapped to SINGle location: "  + p1_list, 20);
 			}
 			else {
 				// might not be a unique path!! (eg. single original nodes now ending up in multiple places)
 				p1_list = get_all_possible_updated_path_mappings(p1, revised_paths);
 				
-				debugMes("update_PairPaths_using_overlapDAG_refined_paths, p1: " + p1 + " mapped to: "  + p1_list, 20);
+				debugMes("remapping of p1: " + p1 + " mapped to MULTiple possible locations: "  + p1_list, 20);
 				
 			}
 			
@@ -1999,9 +2004,12 @@ public class TransAssembly_allProbPaths {
 				if (old_to_new_path.containsKey(p2)) {
 					p2 = old_to_new_path.get(p2);
 					p2_list.add(p2);
+					debugMes("remapping of p2: " + p2 + " mapped to SINGle location: "  + p2_list, 20);
 				}
 				else {
 					p2_list = get_all_possible_updated_path_mappings(p2, revised_paths);
+					
+					debugMes("remapping of p2: " + p2 + " mapped to MULTiple possible locations: "  + p2_list, 20);
 				}
 			
 				// create new pair lists
@@ -2013,19 +2021,36 @@ public class TransAssembly_allProbPaths {
 					new_pp = new PairPath(p1_path, p2_path);
 					updated_pairPaths.put(new_pp, read_support);
 					old_pp_to_new_pp.put(pp, new_pp);  // FIXME:  need to allow for multiple mappings here wrt long reads
+					debugMes("\tnew SINGle pair path remapping of "  + pp + " to " + new_pp, 20);
 				}
 				else {
+					//FIXME:  Relink pairs parsimoniously
+					
+					debugMes("\tnon-unique pair mapping ... taking simple approach for now, adding each location as unpaired", 20);
+					
+					
 					// add each path separately if not already seen
 					for (List<Integer> p1_path : p1_list) {
 						if (! updated_pairPaths.containsKey(p1_path)) {
 							new_pp = new PairPath(p1_path);
-							updated_pairPaths.put(new_pp, 1);
+							if (! updated_pairPaths.containsKey(new_pp)) {
+								updated_pairPaths.put(new_pp, 1);
+								debugMes("\t\tadding orig p1 " + p1_path + " as singleton " + new_pp, 20);
+							} else {
+								debugMes("\t\tskipping on adding indiv path: " + p1_path + " as " + new_pp + " because latter already exists.", 20);
+							}
 						}
-					}
+					}	
 					for (List<Integer> p2_path : p2_list) {
 						if (! updated_pairPaths.containsKey(p2_path)) {
 							new_pp = new PairPath(p2_path);
-							updated_pairPaths.put(new_pp, 1);
+							
+							if (! updated_pairPaths.containsKey(new_pp)) {
+								updated_pairPaths.put(new_pp, 1);
+								debugMes("\t\tadding orig p2 " + p2_path + " as singleton " + new_pp, 20);
+							} else {
+								debugMes("\t\tskipping on adding indiv path: " + p2_path + " as " + new_pp + " because latter already exists.", 20);
+							}
 						}
 					}
 					
@@ -2048,6 +2073,7 @@ public class TransAssembly_allProbPaths {
 					new_pp = new PairPath(p1_path);
 					updated_pairPaths.put(new_pp, read_support);
 					old_pp_to_new_pp.put(pp, new_pp); 
+					debugMes("\tsingle path remapping of: " + pp + " to " + new_pp, 20);
 				}
 			}
 			
@@ -2512,18 +2538,20 @@ public class TransAssembly_allProbPaths {
 		Collections.reverse(topo_sorted_vertices);
 		
 		for (SeqVertex v : topo_sorted_vertices) {
-			
+
 			if (v.is_replacement_vertex) { continue; }
-			
+
 			if (! seqvertex_graph.containsVertex(v)) { continue; }
-			
-			
-				count_total_zip_merged += zip_up(seqvertex_graph, v);
-			
-			
-			
+
+
+			count_total_zip_merged += zip_up(seqvertex_graph, v);
+
+
 		}
 
+		// don't forget to zip up the bottom / terminal nodes where possible.
+		
+		count_total_zip_merged += zip_up_terminals(seqvertex_graph);
 
 		return(count_total_zip_merged);
 		
@@ -2550,23 +2578,18 @@ public class TransAssembly_allProbPaths {
 		List<SeqVertex> topo_sorted_vertices = TopologicalSort.topoSortSeqVerticesDAG(seqvertex_graph);
 
 
-
-
 		for (SeqVertex v : topo_sorted_vertices) {
 
 			if (v.is_replacement_vertex) { continue; }
 			
 			if (! seqvertex_graph.containsVertex(v)) { continue; }
 
-			
-
 			count_total_zip_merged += zip_down(seqvertex_graph, v);
-
-
 
 		}
 
-
+		count_total_zip_merged += zip_down_initials(seqvertex_graph);
+		
 		return(count_total_zip_merged);
 
 
@@ -2623,7 +2646,63 @@ public class TransAssembly_allProbPaths {
 		return(count_zip_merged);
 	}
 
+	private static int zip_up_terminals (
+			DirectedSparseGraph<SeqVertex, SimpleEdge> seqvertex_graph) {
+		
+		
+		// get the terminal nodes:
+		List<SeqVertex> pred_list = new ArrayList<SeqVertex>();
+		for (SeqVertex v : seqvertex_graph.getVertices()) {
+			if (seqvertex_graph.getSuccessors(v).isEmpty()) {
+				// terminal node
+				pred_list.add(v);
+			}
+		}
+		
+		if (pred_list.size() <= 1) { return (0); } // v must have multiple parents to zip
+		
+		debugMes("## zip_up()", 15);
+		
+		// get list of parent nodes having the same original ID
+		HashMap<Integer,HashSet<SeqVertex>> pred_orig_id_to_vertex_list = new HashMap<Integer,HashSet<SeqVertex>>();
+		
+		for (SeqVertex pred : pred_list) {
+			
+			if (pred.is_replacement_vertex) { return(0); } // delay to next round.
+			
+			if (! seqvertex_graph.containsVertex(pred)) { continue; }
+			
+			Integer orig_pred_id = pred.getOrigButterflyID();
+			if (! pred_orig_id_to_vertex_list.containsKey(orig_pred_id)) {
+				pred_orig_id_to_vertex_list.put(orig_pred_id, new HashSet<SeqVertex>());
+			}
+			pred_orig_id_to_vertex_list.get(orig_pred_id).add(pred);
+			
+		}
 
+		
+		int count_zip_merged = 0;
+		
+		
+		for (HashSet<SeqVertex> pred_same_orig_id_set : pred_orig_id_to_vertex_list.values()) {
+			
+			if (pred_same_orig_id_set.size() == 1) { continue; } // need multiple parents for merging
+
+			// merge them into a single node.
+			
+			
+
+			count_zip_merged += attempt_zip_merge_SeqVertices(pred_same_orig_id_set, seqvertex_graph, "min");
+		}
+		
+		return(count_zip_merged);
+	}
+	
+	
+	
+	
+	
+	
 	private static int zip_down (
 			DirectedSparseGraph<SeqVertex, SimpleEdge> seqvertex_graph,
 			SeqVertex v) {
@@ -2672,6 +2751,62 @@ public class TransAssembly_allProbPaths {
 		return(count_zip_merged);
 	}
 	
+	
+	private static int zip_down_initials (
+			DirectedSparseGraph<SeqVertex, SimpleEdge> seqvertex_graph) {
+		
+		
+		// work on the initial nodes that have no parents.
+		
+		List<SeqVertex> child_list = new ArrayList<SeqVertex>();
+		
+		for (SeqVertex v : seqvertex_graph.getVertices()) {
+			if (seqvertex_graph.getPredecessors(v).isEmpty() ) {
+				child_list.add(v);
+			}
+		}
+		
+		
+		
+		if (child_list.size() <= 1) { return (0); } // v must have multiple children to zip
+		
+		
+		debugMes("##zip_down()", 15);
+		
+		
+		// get list of children nodes having the same original ID
+		HashMap<Integer,HashSet<SeqVertex>> child_orig_id_to_vertex_list = new HashMap<Integer,HashSet<SeqVertex>>();
+		
+		for (SeqVertex child : child_list) {
+			
+			if (child.is_replacement_vertex) { return(0); } // delay to next round
+			
+			if (! seqvertex_graph.containsVertex(child) ) { continue; }
+			
+			Integer orig_child_id = child.getOrigButterflyID();
+			if (! child_orig_id_to_vertex_list.containsKey(orig_child_id)) {
+				child_orig_id_to_vertex_list.put(orig_child_id, new HashSet<SeqVertex>());
+			}
+			child_orig_id_to_vertex_list.get(orig_child_id).add(child);
+			
+		}
+
+		int count_zip_merged = 0;
+		
+		
+		for (HashSet<SeqVertex> child_same_orig_id_set : child_orig_id_to_vertex_list.values()) {
+			
+			if (child_same_orig_id_set.size() == 1) { continue; } // need multiple parents for merging
+
+			// merge them into a single node.
+			
+			
+
+			count_zip_merged += attempt_zip_merge_SeqVertices(child_same_orig_id_set, seqvertex_graph, "max");
+		}
+		
+		return(count_zip_merged);
+	}
 	
 	
 	private static int attempt_zip_merge_SeqVertices(HashSet<SeqVertex> pred_same_orig_id_set,
@@ -3318,7 +3453,7 @@ public class TransAssembly_allProbPaths {
 			for (Path vertex : path_overlap_graph.getVertices())
 			{ //go over all vertices
 
-				String verDesc = ""+vertex.getPathNodeID() +" [label=\"" + vertex.getPathNodeID() + "\"]";
+				String verDesc = ""+vertex.getPathNodeID() +" [label=\"" + vertex.getPathNodeID() + "^" + vertex.get_vertex_list() + "\"]";
 				p.println("\t" + verDesc);
 
 				for (SimplePathNodeEdge edge : path_overlap_graph.getOutEdges(vertex)) //get all edges of vertex->?
@@ -6322,12 +6457,7 @@ HashMap<List<Integer>, Pair<Integer>> transcripts = new HashMap<List<Integer>,Pa
 			pasaVerticesSortedArr[i].idx = i;
 		}
 
-		if (GENERATE_MIDDLE_DOT_FILES) {
-			// currently just using it for visualization, but should probably be using it below too!!  //FIXME: use PasaVertex_graph for more efficient assembly.
-			DirectedSparseGraph<PasaVertex, SimpleEdge> pasavertex_graph = generate_PasaVertex_Graph(pasaVerticesSortedArr, compatibility_dag, node_in_common_2d);
-			writePasaGraphDotFile(pasavertex_graph, FILE+"_pasafly_graph.dot");
 		
-		}
 		
 		
 		if (BFLY_GLOBALS.VERBOSE_LEVEL >= 10) {
@@ -6352,6 +6482,13 @@ HashMap<List<Integer>, Pair<Integer>> transcripts = new HashMap<List<Integer>,Pa
 		
 		debugMes("Beginning PasaFly Dynamic Programming Alg", 10);
 		
+		
+		if (GENERATE_MIDDLE_DOT_FILES) {
+			// currently just using it for visualization, but should probably be using it below too!!  //FIXME: use PasaVertex_graph for more efficient assembly.
+			DirectedSparseGraph<PasaVertex, SimpleEdge> pasavertex_graph = generate_PasaVertex_Graph(pasaVerticesSortedArr, compatibility_dag, node_in_common_2d);
+			writePasaGraphDotFile(pasavertex_graph, FILE+"_pasafly_graph.dot");
+		
+		}
 		
 		// --------------------------------------
 		// Build Trellis   ----------------------
@@ -7217,7 +7354,6 @@ HashMap<List<Integer>, Pair<Integer>> transcripts = new HashMap<List<Integer>,Pa
 			for (int j = i+1; j < pasaVerticesSortedList.size(); j++) {
 				
 				
-					
 				PasaVertex iJ = pasaVerticesSortedList.get(j);
 		
 				
