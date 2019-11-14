@@ -89,6 +89,11 @@ public class ScoredPath {
 	
 	public String describe_score_calculation() {
 		
+		if (BFLY_GLOBALS.VERBOSE_LEVEL < 15) {
+			return("too compute intensive, requires debug level >= 15");
+		}
+		
+		
 		HashSet<PasaVertex> pv_seen = new HashSet<PasaVertex>();
 		
 		String ret_text = "Backtracking score calculation. Stored score = " + this.pv_path_score + " :\n";

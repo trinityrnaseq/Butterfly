@@ -6928,6 +6928,7 @@ HashMap<List<Integer>, Pair<Integer>> transcripts = new HashMap<List<Integer>,Pa
 					for (int z = sp.pv_path.size() -1; z >= 0; z--) {
 						
 						if (BFLY_GLOBALS.VERBOSE_LEVEL >= 10) {
+							System.err.flush();
 							System.err.print("\r[" + i + "," + j + "," + sp_counter + "," + z +  "]       ");
 						}
 						
