@@ -1169,29 +1169,11 @@ public class TransAssembly_allProbPaths {
         		}
         		else if (pasaFlyOpt) {
 
-
-        			debugMes("### Extracting complex path prefixes from reads.", 10);
-        			HashMap<Integer, List<List<Integer>>> extendedTripletMapper = extractComplexPathPrefixesFromReads(componentReadHash);
-
-
-        			FinalPaths_all = pasafly(seqvertex_graph, componentReadHash, dijkstraDis, tripletMapper, extendedTripletMapper);
-
+        			FinalPaths_all = pasafly(seqvertex_graph, componentReadHash, dijkstraDis);
 
         		}
         	}
         	
-        	/*
-        	else if (pasaFlyUniqueOpt) {
-
-
-        		debugMes("### Extracting complex path prefixes from reads.", 10);
-        		HashMap<Integer, List<List<Integer>>> extendedTripletMapper = extractComplexPathPrefixesFromReads(componentReadHash);
-
-
-        		FinalPaths_all = pasaflyunique(seqvertex_graph, componentReadHash,dijkstraDis, tripletMapper, extendedTripletMapper);
-
-        	}
-	        */
         	
         	else {
         		//--------------------------------------------
@@ -3322,7 +3304,8 @@ public class TransAssembly_allProbPaths {
 
 	private static void writeDotFile(
 			DirectedSparseGraph<Path, SimplePathNodeEdge> path_overlap_graph,
-			String output_filename, String graphName) {
+			String output_filename, 
+			String graphName) {
 
 		PrintStream p;
 		try {
@@ -3359,7 +3342,45 @@ public class TransAssembly_allProbPaths {
 
 	}
 
-	
+	private static void writePasaGraphDotFile(
+			DirectedSparseGraph<PasaVertex, SimpleEdge> pasavertex_graph,
+			String output_filename) {
+
+		PrintStream p;
+		try {
+			
+			p = new PrintStream(new FileOutputStream(output_filename));
+			
+			p.println("digraph G {");
+			
+
+			//for each edge decide it's color
+			for (PasaVertex pv : pasavertex_graph.getVertices())
+			{ //go over all vertices
+
+				String verDesc = ""+ pv.idx +" [label=\"" + pv.pp + "\"]";
+				p.println("\t" + verDesc);
+
+				for (SimpleEdge edge : pasavertex_graph.getOutEdges(pv)) //get all edges of vertex->?
+				{
+					PasaVertex toVertex = pasavertex_graph.getDest(edge);
+
+					p.println("\t" + pv.idx + "->" + toVertex.idx);
+
+				}
+			}
+
+
+			p.println("}");
+			
+			p.close();
+			
+		} catch (FileNotFoundException e) {
+			// TODO Auto-generated catch block
+			e.printStackTrace();
+		}	
+
+	}
 	
 	private static DirectedSparseGraph<Path, SimplePathNodeEdge> construct_path_overlap_graph(
 			List<Path> path_list, 
@@ -6124,9 +6145,7 @@ HashMap<List<Integer>, Pair<Integer>> transcripts = new HashMap<List<Integer>,Pa
 	private static HashMap<List<Integer>, Pair<Integer>> pasafly(
 			final DirectedSparseGraph<SeqVertex, SimpleEdge> graph,
 			HashMap<Integer, HashMap<PairPath, Integer>> componentReadHash,
-			DijkstraDistance<SeqVertex, SimpleEdge> dijkstraDis, 
-			HashMap<Integer, List<List<Integer>>> tripletMapper, 
-			HashMap<Integer, List<List<Integer>>> extendedTripletMapper) {
+			DijkstraDistance<SeqVertex, SimpleEdge> dijkstraDis) {
 	
 		
 		
@@ -6303,7 +6322,12 @@ HashMap<List<Integer>, Pair<Integer>> transcripts = new HashMap<List<Integer>,Pa
 			pasaVerticesSortedArr[i].idx = i;
 		}
 
+		if (GENERATE_MIDDLE_DOT_FILES) {
+			// currently just using it for visualization, but should probably be using it below too!!  //FIXME: use PasaVertex_graph for more efficient assembly.
+			DirectedSparseGraph<PasaVertex, SimpleEdge> pasavertex_graph = generate_PasaVertex_Graph(pasaVerticesSortedArr, compatibility_dag, node_in_common_2d);
+			writePasaGraphDotFile(pasavertex_graph, FILE+"_pasafly_graph.dot");
 		
+		}
 		
 		
 		if (BFLY_GLOBALS.VERBOSE_LEVEL >= 10) {
@@ -6793,6 +6817,46 @@ HashMap<List<Integer>, Pair<Integer>> transcripts = new HashMap<List<Integer>,Pa
 		
 	}
 */
+
+	private static DirectedSparseGraph<PasaVertex, SimpleEdge> generate_PasaVertex_Graph(
+			PasaVertex[] pasaVerticesSortedArr, 
+			boolean[][] compatibility_dag,
+			boolean[][] node_in_common_2d) {
+		
+		
+		DirectedSparseGraph<PasaVertex, SimpleEdge> pasavertex_graph = new DirectedSparseGraph<PasaVertex, SimpleEdge>();
+		
+		// add vertices
+		for (PasaVertex pv : pasaVerticesSortedArr) {
+			pasavertex_graph.addVertex(pv);
+		}
+		// add edges:
+		for (int i = 0; i < pasaVerticesSortedArr.length -1; i++) {
+			
+			for (int j = i + 1; j < pasaVerticesSortedArr.length; j++) {
+				
+				if (compatibility_dag[i][j] && node_in_common_2d[i][j]) {
+					
+					// compatible and overlapping
+					// add edge.
+					SimpleEdge spne = new SimpleEdge(1d, i, j);
+					
+					pasavertex_graph.addEdge(spne, pasaVerticesSortedArr[i], pasaVerticesSortedArr[j]);
+					
+					
+					
+				}
+				
+				
+			}
+		}
+		
+		return(pasavertex_graph);
+		
+	}
+
+
+	
 
 	private static boolean[][] getPASA_PairNodeInCommon2d(PasaVertex[] pasaVerticesSortedArr) {
 		
