@@ -42,6 +42,10 @@ public class Path {
 	}
 	
 	
+	public boolean fully_contains_path(Path other_path) {
+		return(Path.pathA_contains_pathB_allowRepeats(this.get_vertex_list(), other_path.get_vertex_list()));
+	}
+	
 	
 	///////////////////////////
 	// various static methods
@@ -745,6 +749,72 @@ public class Path {
 
 	}
 
+	public static PathOverlap pathB_extends_or_contained_by_pathA_allowRepeats(List<Integer> pathB, 
+			List<Integer> pathA, 
+			HashSet<Integer> repeat_node_ids) {
+
+
+		int best_match_count = -1;
+
+		PathOverlap path_overlap = new PathOverlap(0,0);
+
+		
+		// we're not allowing cases where A is contained by B
+		if (pathA_contains_pathB_allowRepeats(pathB, pathA)) {
+			return(path_overlap); // nope!
+		}
+		
+		
+		for (int i = 0; i < pathA.size(); i++) {
+			
+			// is B contained IN or extended from A?
+			if (pathB.get(0).equals(pathA.get(i))) {
+
+				int matches = 0;
+				int overlap_len = 0;
+
+
+				// have a first position match.  See if it extends to a complete match:
+				for (int pathB_pos=0, pathA_pos = i; 
+						pathA_pos < pathA.size() 
+						&& pathB_pos < pathB.size();
+						pathA_pos++, pathB_pos++) {
+
+					Integer pathA_id = pathA.get(pathA_pos);
+					Integer pathB_id = pathB.get(pathB_pos);
+
+					overlap_len++;
+					if (pathB_id.equals(pathA_id)) {
+						if (! repeat_node_ids.contains(pathA_id)) {
+							// dont count it if it's a repeat node.
+							matches++;
+						}
+
+					}
+					else {
+
+						matches = -1;
+						break;
+					}
+				} // end of paired walk
+
+				//System.err.println("Got match count: " + matches + " vs. path size " + pathB.size());
+
+				if (matches > best_match_count) {
+					best_match_count = matches;
+					path_overlap.match_length = overlap_len;
+					path_overlap.match_score = matches;
+
+				}
+
+			}
+		}
+		
+		return(path_overlap);
+
+}
+	
+	
 	public static boolean share_suffix_fully_contained(List<Integer> path_i,
 			List<Integer> path_j) {
 		

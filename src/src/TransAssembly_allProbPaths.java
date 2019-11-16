@@ -798,10 +798,11 @@ public class TransAssembly_allProbPaths {
 			debugMes("removeLightEdges()", 1);
 			removeLightEdges(graph);
 
-
+			/*
 			if (createMiddleDotFiles)
 				writeDotFile(graph,file + "_removeLightEdges_init.B.dot",graphName, false);
 
+			*/
 		}
 		
 		
@@ -1636,15 +1637,17 @@ public class TransAssembly_allProbPaths {
 
 		populate_pairpaths_and_readsupport(combinedReadHash, pairPaths, pairPathToReadSupport);
 
-		List<List<Integer>> paths = new ArrayList<List<Integer>>();
+		
+		Set<List<Integer>> paths_set = new HashSet<List<Integer>>();
 		for (PairPath pp : pairPaths) {
-
-			paths.add(pp.getPath1());
+			paths_set.add(pp.getPath1());
 			if (pp.hasSecondPath()) {
-				paths.add(pp.getPath2());
+				paths_set.add(pp.getPath2());
 			}
 		}
 
+		List<List<Integer>> paths = new ArrayList<List<Integer>>(paths_set);
+	
 		Collections.sort(paths, new Comparator<List<Integer>>() {
 
 			public int compare(List<Integer> pathA, List<Integer> pathB) {
@@ -1689,31 +1692,29 @@ public class TransAssembly_allProbPaths {
 		////////////////////////////
 		
 		
-		// build a graph of compatible paths.
+		// build a graph of compatible paths.    //  ----------- LADEDA ---------
 		List<Path> path_list = new ArrayList<Path>();
-		for (List<Integer> p : noncontained_paths) {
+		//for (List<Integer> p : noncontained_paths) {
+		for (List<Integer> p : paths) {
 			path_list.add(new Path(p));
 		}
+		
+		// -------------------------
+		// create path overlap graph
 		
 		HashMap<String,PathOverlap> pathMatches = new HashMap<String,PathOverlap>(); 
 		
 		DirectedSparseGraph<Path, SimplePathNodeEdge> path_overlap_graph = construct_path_overlap_graph(path_list, pathMatches, 
-				dispersed_repeat_nodes, dot_file_prefix, 
-				 graphName,  createMiddleDotFiles);
+				dispersed_repeat_nodes, graphName);
 		
-		// draw the dot file for the path overlap graph:
-		if (createMiddleDotFiles) 
-			writeDotFile(path_overlap_graph, dot_file_prefix + "_POG.dot", graphName);
+		
 		
 		if (BFLY_GLOBALS.VERBOSE_LEVEL >= 15) {
 			// output the path node listing
 			for (Path p : path_overlap_graph.getVertices()) {
 				debugMes("PathNodeDescription: " + p, 15);
 			}
-			
-			
 		}
-		
 		
 		
 		// add read pairing information to the graph:
@@ -2229,9 +2230,11 @@ public class TransAssembly_allProbPaths {
 		}
 		
 		
-		// do a DFS-based graph reconstruction starting from a root node.
-		SeqVertex.set_graph(seqvertex_graph);
 		
+		// do a DFS-based graph reconstruction starting from a root node.
+		// Link up nodes between overlapping paths in the overlap graph
+		
+		SeqVertex.set_graph(seqvertex_graph);
 		
 		HashSet<Path> visited = new HashSet<Path>();
 		
@@ -2244,6 +2247,7 @@ public class TransAssembly_allProbPaths {
 			}
 			
 		}
+		
 		
 		
 		// before zippingUp
@@ -3007,6 +3011,8 @@ public class TransAssembly_allProbPaths {
 			HashSet<Path> visited) {
 	
 		
+		// note, this is run recursively starting from a root node.
+		
 		if (visited.contains(p)) {
 			// already done
 			return;
@@ -3020,7 +3026,7 @@ public class TransAssembly_allProbPaths {
 		// Phase 1.  find candidate adjacent paths for use in labeling nodes in this path.
 		
 		
-		List<Path> adjacent_untraversed_pathnodes = new ArrayList<Path>(); // for later, deciding next DFS entries
+		//List<Path> adjacent_untraversed_pathnodes = new ArrayList<Path>(); // for later, deciding next DFS entries
 		
 	
 		
@@ -3041,10 +3047,14 @@ public class TransAssembly_allProbPaths {
 
 
 				for (int i = curr_vertex_list.size() - match_len, j = 0;
-						i < curr_vertex_list.size() && j < match_len;
+						i < curr_vertex_list.size() 
+						&& 
+						j < match_len
+						&&
+						j < succ_vertex_list.size() - 1;
 						i++,j++) {
 
-
+					
 					SeqVertex curr_vertex = curr_vertex_list.get(i);
 					SeqVertex succ_vertex = succ_vertex_list.get(j+1);
 
@@ -3520,9 +3530,8 @@ public class TransAssembly_allProbPaths {
 	private static DirectedSparseGraph<Path, SimplePathNodeEdge> construct_path_overlap_graph(
 			List<Path> path_list, 
 			HashMap<String, PathOverlap> pathMatches, 
-			HashSet<Integer> dispersed_repeat_nodes, 
-			String dot_file_prefix, 
-			String graphName, boolean createMiddleDotFiles) {
+			HashSet<Integer> dispersed_repeat_nodes,  
+			String graphName) {
 		
 		// draw an edge between each pathNode B and the pathNode A to which B has a best-matching extension to the right.
 		
@@ -3551,7 +3560,7 @@ public class TransAssembly_allProbPaths {
 		}
 		
 
-		boolean store_best_extension_match_only = false;
+		boolean store_best_extension_match_only = false;           //----------- LADEDA ------------
 		
 		for (int i = 0; i < path_list.size(); i++) {
 			
@@ -3561,13 +3570,37 @@ public class TransAssembly_allProbPaths {
 			List<Integer> best_precursor_j_indices = new ArrayList<Integer>();
 			
 			
+			Path path_I = path_list.get(i);
+			List<Integer> path_I_id_list = path_I.get_vertex_list();
+			
+			
+			//  looking for extensions from I
+			
+			
 			for (int j = 0; j < path_list.size(); j++) {
 				
 				if (i==j) {continue;}
 				
+				Path path_J = path_list.get(j);
+				
+				List<Integer> path_J_id_list = path_J.get_vertex_list();
+				
+				/*
 				PathOverlap path_overlap = Path.pathB_extends_pathA_allowRepeats(path_list.get(i).get_vertex_list(),
 											   								path_list.get(j).get_vertex_list(), 
 											   								repeat_node_ids);
+				*/
+				
+				
+				
+				//    I (A)  ---------------->
+				//    J (B)       ------------------->
+				//  or
+				//    J (B)       ----->
+				
+				
+				PathOverlap path_overlap = Path.pathB_extends_or_contained_by_pathA_allowRepeats(path_I_id_list, path_J_id_list, repeat_node_ids);
+				
 				
 				
 				int extension_matches = path_overlap.match_score;
@@ -3579,11 +3612,11 @@ public class TransAssembly_allProbPaths {
 				// i extends j
 				
 				// got a match.
-				String path_pair_token = get_path_compare_token(path_list.get(j), path_list.get(i));
+				String path_pair_token = get_path_compare_token(path_J, path_I);
 				pathMatches.put(path_pair_token, path_overlap);
 
 				debugMes("PathNode Overlap Detected: [overlap:  " + path_overlap.match_length + "] " 
-						+ path_list.get(j) + " extended by " + path_list.get(i), 15);
+						+ path_J + " extended by " + path_I, 15);
 				
 
 				if (! store_best_extension_match_only)  {
@@ -3598,6 +3631,8 @@ public class TransAssembly_allProbPaths {
 					if (extension_matches > best_match) {
 						best_match = extension_matches;
 						best_matching_path_idx = j;
+						
+						// save only best new j
 						best_precursor_j_indices.clear();
 						best_precursor_j_indices.add(j);
 
@@ -3608,7 +3643,7 @@ public class TransAssembly_allProbPaths {
 					}
 				}
 				
-			}
+			} // end for j
 			
 		
 		
@@ -3616,19 +3651,20 @@ public class TransAssembly_allProbPaths {
 			if (best_precursor_j_indices.size() > 0) {
 				for (Integer precursor_index : best_precursor_j_indices) {
 
-					String path_pair_token = get_path_compare_token(path_list.get(precursor_index), path_list.get(i));
+					String path_pair_token = get_path_compare_token(path_list.get(precursor_index), path_I);
 					PathOverlap po = pathMatches.get(path_pair_token);
 
+					Path path_ext_J = path_list.get(precursor_index);
 					
-					debugMes("extension of: " + path_list.get(precursor_index) + " by " + path_list.get(i) 
+					debugMes("extension of: " + path_ext_J + " by " + path_I 
 							+  " has " + po.match_score + " terminal matches.", 15);
 
 					// i extends j
 					SimplePathNodeEdge spne = new SimplePathNodeEdge(po.match_score, 
-							path_list.get(precursor_index).getPathNodeID(),
-							path_list.get(i).getPathNodeID());
+							path_ext_J.getPathNodeID(),
+							path_I.getPathNodeID());
 					
-					path_overlap_graph.addEdge(spne, path_list.get(precursor_index), path_list.get(i));
+					path_overlap_graph.addEdge(spne, path_ext_J, path_I);
 
 				}
 			}
@@ -3637,14 +3673,74 @@ public class TransAssembly_allProbPaths {
 			}
 			
 			
+		}
+		
+
+		// draw the dot file for the path overlap graph:
+		if (GENERATE_MIDDLE_DOT_FILES) 
+			writeDotFile(path_overlap_graph, FILE + "_POG.dot", graphName);
+
+		
+		path_overlap_graph = prune_overlap_graph_of_pure_containments(path_overlap_graph);
+
+		// draw the dot file for the path overlap graph:
+		if (GENERATE_MIDDLE_DOT_FILES) 
+			writeDotFile(path_overlap_graph, FILE + "_POG_pureContainsRemoved.dot", graphName);
+
+
+		return(path_overlap_graph);
+		
+	}
+
+	
+	private static DirectedSparseGraph<Path, SimplePathNodeEdge> prune_overlap_graph_of_pure_containments( 
+			DirectedSparseGraph<Path, SimplePathNodeEdge> path_overlap_graph) {
+		
+		
+		List<Path> to_remove = new ArrayList<Path>();
+		
+		for (Path p : path_overlap_graph.getVertices()) {
+			
+			// require to be a terminal node
+			if (path_overlap_graph.getSuccessorCount(p) != 0) 
+				continue;
+			
+			// require to be fully contained by all ancestors
+			boolean contained_by_all_ancestors = true;
+			for (Path pred_p : path_overlap_graph.getPredecessors(p) ) {
+				if (! pred_p.fully_contains_path(p) ) {
+					contained_by_all_ancestors = false;
+				}
+			}
+			if (contained_by_all_ancestors) {
+				to_remove.add(p);
+			}
 			
 		}
+		
+		List<SimplePathNodeEdge> spnes_remove = new ArrayList<SimplePathNodeEdge>();
+		for (Path p : to_remove) {
+			// remove edges to parents
+			for (Path pred_p : path_overlap_graph.getPredecessors(p) ) {
+				SimplePathNodeEdge spne = path_overlap_graph.findEdge(pred_p, p);
+				spnes_remove.add(spne);
+			}
+			
+			
+		}
+		
+		for (SimplePathNodeEdge spne : spnes_remove) 
+			path_overlap_graph.removeEdge(spne);
+		
+		for (Path p : to_remove)
+			path_overlap_graph.removeVertex(p);
 		
 		
 		return(path_overlap_graph);
 		
 	}
-
+	
+	
 
 	private static String get_path_compare_token(Path pathA, Path pathB) {
 		
@@ -4410,7 +4506,7 @@ HashMap<List<Integer>, Pair<Integer>> transcripts = new HashMap<List<Integer>,Pa
 		
 		describeNodes(graph);
 		
-		
+		debugMes("# reorganizeReadPairings", 10);
 		
 		HashMap<Integer,HashMap<PairPath,Integer>>   newCombinedReadHash = new HashMap<Integer,HashMap<PairPath,Integer>>  ();
 
@@ -10036,10 +10132,32 @@ HashMap<List<Integer>, Pair<Integer>> transcripts = new HashMap<List<Integer>,Pa
 		SeqVertex lastV2 = getSeqVertex(graph,path2.get(path2.size()-1));
 		PairPath path  = new PairPath();
 
-		if (path1.containsAll(path2))
+		
+		// ------------------------------
+		// --- exploring containments ---
+		// ------------------------------
+		
+		if (path1.containsAll(path2)) {
+			
+			//   p1   --------->
+			//   p2      ------>
+			
 			path.setPath1(path1);
-		else if (path2.containsAll(path1))
-			path.setPath2(path2);  // note, gets moved to path1 later.
+			debugMes("\tp2 contained by p1, setting as: " + path, 15);
+		}
+		else if (path2.containsAll(path1)) {
+			
+			//   p1  ----->
+			//   p2  ---------->
+			
+			path.setPath1(path2);
+			debugMes("\tp1 is contained by p2, setting as: " + path, 15);
+		}
+		
+		// ------------------------------------
+		// ---- exploring pair separations ----
+		// ------------------------------------
+		
 		
 		//path1 --> path2
 		else if (SeqVertex.isAncestral(lastV1, firstV2,dijkstraDis)>0 
@@ -10047,8 +10165,14 @@ HashMap<List<Integer>, Pair<Integer>> transcripts = new HashMap<List<Integer>,Pa
 				! lastV1.equals(firstV2)
 			)
 		{
+			
+			//  p1 ----->
+			//  p2          ------>
+			
 			path.setPath1(path1);
 			path.setPath2(path2);
+			
+			debugMes("\tp1 before p2 in graph, setting as: " + path, 15);
 		}
 		//path2 --> path1
 		else if (SeqVertex.isAncestral(lastV2, firstV1,dijkstraDis)>0
@@ -10056,14 +10180,24 @@ HashMap<List<Integer>, Pair<Integer>> transcripts = new HashMap<List<Integer>,Pa
 				! lastV2.equals(firstV1)
 			)
 		{
+			
+			//  p1          ------->
+			//  p2  ----->
+			
+			
 			path.setPath1(path2);
 			path.setPath2(path1);
+			
+			debugMes("\tp2 before p1, so reorienting as p1->p2: " + path, 15);
 		}
+		
+		
 
 		else if (SeqVertex.isAncestral(firstV2,firstV1,dijkstraDis)==0 && 
 				SeqVertex.isAncestral(lastV2,lastV1,dijkstraDis)==0)
 		{
 			//there is no consistent path between read1 and read2
+			debugMes("\t****  supposedly no path between reads?????", 15);
 		}
 
 		// ******************
@@ -10072,28 +10206,39 @@ HashMap<List<Integer>, Pair<Integer>> transcripts = new HashMap<List<Integer>,Pa
 		
 		//path1(partial) -> path2
 		else if (SeqVertex.isAncestral(firstV1,firstV2,dijkstraDis)>0 && 
-				path1.indexOf(firstV2.getID())>=0)
+				path1.indexOf(firstV2.getID())>=0 &&
+				PairPath.individual_paths_are_compatible(path1, path2))
 		{
+			
+			// p1   -------->
+			// p2        --------->
+			
 			int i = path1.indexOf(firstV2.getID());
 			path.setPath1(path1.subList(0, i));
 			path.addToPath1(path2);
+			debugMes("\toverlapping p1 and p2 merged into: " + path, 15);
 		}
 
 		//path2(partial) -> path1
 		else if (SeqVertex.isAncestral(firstV2,firstV1,dijkstraDis)>0 &&
-				path2.indexOf(firstV1.getID())>=0)
+				path2.indexOf(firstV1.getID())>=0 &&
+				PairPath.individual_paths_are_compatible(path1, path2))
 		{
+			
+			// p1         ---------->
+			// p2  ---------->
+			
 			int i = path2.indexOf(firstV1.getID());
 			path.setPath1(path2.subList(0, i));
 			path.addToPath1(path1);
+			debugMes("\toverlapping p2 and p1 merged into " + path, 15);
 		}
 
-		if (path.getPath1().isEmpty() && !path.getPath2().isEmpty())
-			path.movePath2To1();
-
+		
 		
 		// Try to impute connecting paths from path 1 to path 2
 		if ((! path.getPath1().isEmpty()) && (! path.getPath2().isEmpty())) {
+			
 			SeqVertex fV1 = getSeqVertex(graph,path.getPath1().get(0));
 			SeqVertex lV1 = getSeqVertex(graph,path.getPath1().get(path.getPath1().size()-1));
 			SeqVertex fV2 = getSeqVertex(graph,path.getPath2().get(0));
@@ -10138,21 +10283,23 @@ HashMap<List<Integer>, Pair<Integer>> transcripts = new HashMap<List<Integer>,Pa
 				}
 				if (impute) {
 					//FIXME:  make sure the distance between pairs is as expected!
-					debugMes("Could Impute path connecting" + path + " containing intervening nodes: " + intervening_vertex_ids, 15);
+					debugMes("\tCould Impute path connecting" + path + " containing intervening nodes: " + intervening_vertex_ids, 15);
 					if (! intervening_vertex_ids.isEmpty()) {
 						path.getPath1().addAll(intervening_vertex_ids);
 					}
 					path.getPath1().addAll(path.getPath2());
 					path.getPath2().clear();
-					debugMes("\tNew read path: " + path, 15);
+					debugMes("\t\tNew read path: " + path, 15);
 
 				}
 				else {
-					debugMes("Could not impute intervening nodes", 20);
+					debugMes("\tCould not impute intervening nodes, retaining as: " + path, 20);
 				}
 			}
 			
 		}
+		
+		debugMes("\tcombinePaths_result: p1: " + path1 + ", p2: " + path2 + " => " + path, 15);
 		
 		
 		return path;
