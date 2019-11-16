@@ -1717,7 +1717,7 @@ public class TransAssembly_allProbPaths {
 		}
 		
 		
-		// add read pairing information to the graph:
+		// add read pairing information to the graph:    //FIXME:  this is turned off for DEBUGGING
 		HashSet<SimplePathNodeEdge> pair_links = addPairPathsToOverlapGraph(path_overlap_graph, pairPathToReadSupport, contained_path_to_containers);
 		
 		// draw the dot file for the path overlap graph:
@@ -2187,7 +2187,7 @@ public class TransAssembly_allProbPaths {
 		
 		debugMes("SECTION\n========  Convert Path-DAG to SeqVertex-DAG ============\n\n", 5);
 		
-	
+		
 		// init seqvertex graph to contain all nodes from expanded paths.
 		
 		HashMap<Path,List<SeqVertex>> orig_path_to_SeqVertex_list = new HashMap<Path,List<SeqVertex>>();
@@ -2613,7 +2613,7 @@ public class TransAssembly_allProbPaths {
 		
 		if (pred_list.size() <= 1) { return (0); } // v must have multiple parents to zip
 		
-		debugMes("## zip_up()", 15);
+		debugMes("## zip_up(" + v + ")", 15);
 		
 		// get list of parent nodes having the same original ID
 		HashMap<Integer,HashSet<SeqVertex>> pred_orig_id_to_vertex_list = new HashMap<Integer,HashSet<SeqVertex>>();
@@ -2829,7 +2829,7 @@ public class TransAssembly_allProbPaths {
 						||
 						seqvertex_graph.isPredecessor(iJ, iV) ) ) {
 					// not allowed
-					debugMes("\t\tnodes to merge: " + iV + " and " + iJ + " have parent/child relationship, so no merging!", 25);
+					debugMes("\t\tnodes to merge: " + iV + " and " + iJ + " have parent/child relationship, so no merging!", 20);
 					return(0);
 				}
 				
@@ -2867,7 +2867,10 @@ public class TransAssembly_allProbPaths {
 			
 			for (SeqVertex p : seqvertex_graph.getPredecessors(v)) {
 				
-				if (p.is_replacement_vertex) { return (0); } // delay till next round
+				if (p.is_replacement_vertex) { 
+					debugMes("\tpred " + p + " is a replacement vertex, skipping.", 20);
+					return (0); 
+				} // delay till next round
 				
 				parent_vertices.add(p);
 				
@@ -2880,7 +2883,10 @@ public class TransAssembly_allProbPaths {
 			
 			for (SeqVertex c: seqvertex_graph.getSuccessors(v)) {
 				
-				if (c.is_replacement_vertex) { return (0); } // delay till next round
+				if (c.is_replacement_vertex) { 
+					debugMes("\tsucc " + c + " is a replacement vertex, skipping.", 20);
+					return (0); 
+				} // delay till next round
 				
 				child_vertices.add(c);
 				
@@ -2895,8 +2901,6 @@ public class TransAssembly_allProbPaths {
 				replacement_vertex_obj = new SeqVertex(replacement_vertex_id, v);
 			}
 			
-			
-			
 		}
 		
 		
@@ -2908,9 +2912,10 @@ public class TransAssembly_allProbPaths {
 			if ( ! (max_val(parent_depths) < min_val(child_depths) ) )
 			{
 				// cannot merge, since doing so would disrupt relative ordering of nodes
+				debugMes("\tcannot perform merge of nodes as would disrupt relative node ordering", 20);
+				
 				return(0);
 			}
-
 
 		}
 		
@@ -3028,14 +3033,25 @@ public class TransAssembly_allProbPaths {
 		
 		//List<Path> adjacent_untraversed_pathnodes = new ArrayList<Path>(); // for later, deciding next DFS entries
 		
-	
+		List<Integer> path_A = p.get_vertex_list();
 		
 		for (Path succ : path_overlap_graph.getSuccessors(p)) {
 			
 			String pair_token = get_path_compare_token(p, succ);
 			PathOverlap po = pathMatches.get(pair_token);
 			
+			List<Integer> path_B = succ.get_vertex_list();
+			
+			if (! po.path_A.equals(path_A)) {
+				throw new RuntimeException("Error, discrepancy between pathA of " + p + " and match info: " + po);
+			}
+			if (! po.path_B.equals(path_B)) {
+				throw new RuntimeException("Error, discrepancy between pathB of " + succ + " and match info: " + po);
+			}
+			
+			
 			int match_len = po.match_length;
+			
 			
 			// draw edge between curr last node and next node in the successor path
 			List<SeqVertex> curr_vertex_list = orig_path_to_SeqVertex_list.get(p);
@@ -3044,37 +3060,69 @@ public class TransAssembly_allProbPaths {
 			
 			boolean connect_all_matching_positions = true;
 			if (connect_all_matching_positions) {
-
-
-				for (int i = curr_vertex_list.size() - match_len, j = 0;
-						i < curr_vertex_list.size() 
-						&& 
-						j < match_len
-						&&
-						j < succ_vertex_list.size() - 1;
-						i++,j++) {
+				
+				//  path_A    --------------->
+				//  path_B    ->                 contained
+				//  or
+				//                           --->  extended
+				
+				
+				for (int i = po.idx_start_A, j = po.idx_start_B, m = 0;
+						m < po.match_length &&
+						i < path_A.size() &&
+						j < path_B.size() -1;
+						i++,j++, m++) {
 
 					
-					SeqVertex curr_vertex = curr_vertex_list.get(i);
-					SeqVertex succ_vertex = succ_vertex_list.get(j+1);
+					// reciprocal linking i -> (j +1)
+					//               and  j -> (i + 1)
+					// where possible.
+					
+					if (i + 1 < curr_vertex_list.size()) {
+						// link j -> (i + 1)
+						SeqVertex next_vertex = curr_vertex_list.get(i+1);
+						SeqVertex prev_vertex = succ_vertex_list.get(j);
 
-					SimpleEdge se = new SimpleEdge(1, curr_vertex.getID(), succ_vertex.getID());
-					seqvertex_graph.addEdge(se, curr_vertex, succ_vertex);
+						SimpleEdge se = new SimpleEdge(1, prev_vertex.getID(), next_vertex.getID());
+						seqvertex_graph.addEdge(se, prev_vertex, next_vertex);
+					
+					}
+					if (j + 1 < succ_vertex_list.size()) {
+						
+						// link i-> (j + 1)
+						
+						SeqVertex prev_vertex = curr_vertex_list.get(i);
+						SeqVertex next_vertex = succ_vertex_list.get(j+1);
 
+						SimpleEdge se = new SimpleEdge(1, prev_vertex.getID(), next_vertex.getID());
+						seqvertex_graph.addEdge(se, prev_vertex, next_vertex);
+						
+					}
 
-				}
+				} // end for i, j, m
 			}
 			else {
 				
 				// just the last one
 				
-				SeqVertex curr_vertex = curr_vertex_list.get(curr_vertex_list.size()-1);
-				SeqVertex succ_vertex = succ_vertex_list.get(match_len); // linking up the prev to next+1
-
-				SimpleEdge se = new SimpleEdge(1, curr_vertex.getID(), succ_vertex.getID());
-				seqvertex_graph.addEdge(se, curr_vertex, succ_vertex);
-
+				int last_i = po.idx_start_A + po.match_length - 1;
+				int last_j = po.idx_start_B + po.match_length - 1;
 				
+				if (last_i - 1 >= 0) {
+				
+					SeqVertex prev_vertex = curr_vertex_list.get(last_i - 1);
+					SeqVertex next_vertex = succ_vertex_list.get(last_j); // linking up the prev to next+1
+
+					SimpleEdge se = new SimpleEdge(1, prev_vertex.getID(), next_vertex.getID());
+					seqvertex_graph.addEdge(se, prev_vertex, next_vertex);
+				}
+				if (last_j - 1 >= 0) {
+					SeqVertex next_vertex = curr_vertex_list.get(last_i);
+					SeqVertex prev_vertex = succ_vertex_list.get(last_j -1); // linking up the prev to next+1
+
+					SimpleEdge se = new SimpleEdge(1, prev_vertex.getID(), next_vertex.getID());
+					seqvertex_graph.addEdge(se, prev_vertex, next_vertex);
+				}	
 				
 			}
 
@@ -3601,6 +3649,10 @@ public class TransAssembly_allProbPaths {
 				
 				PathOverlap path_overlap = Path.pathB_extends_or_contained_by_pathA_allowRepeats(path_I_id_list, path_J_id_list, repeat_node_ids);
 				
+				if (path_overlap == null) {
+					// no match
+					continue;
+				}
 				
 				
 				int extension_matches = path_overlap.match_score;
@@ -3681,12 +3733,13 @@ public class TransAssembly_allProbPaths {
 			writeDotFile(path_overlap_graph, FILE + "_POG.dot", graphName);
 
 		
+		/*
 		path_overlap_graph = prune_overlap_graph_of_pure_containments(path_overlap_graph);
 
 		// draw the dot file for the path overlap graph:
 		if (GENERATE_MIDDLE_DOT_FILES) 
 			writeDotFile(path_overlap_graph, FILE + "_POG_pureContainsRemoved.dot", graphName);
-
+	    */
 
 		return(path_overlap_graph);
 		

@@ -692,7 +692,7 @@ public class Path {
 		
 		int best_match_count = -1;
 		
-		PathOverlap path_overlap = new PathOverlap(0,0);
+		PathOverlap path_overlap = null;
 		
 		for (int i = pathA.size()-1; i >= pathA.size() - pathB.size() && i >= 0; i--) {
 			if (pathB.get(0).equals(pathA.get(i))) {
@@ -737,8 +737,9 @@ public class Path {
 
 				if (matches > best_match_count) {
 					best_match_count = matches;
-					path_overlap.match_length = overlap_len;
-					path_overlap.match_score = matches;
+					
+					path_overlap = new PathOverlap(pathA, pathB, i, 0, matches, overlap_len);
+					
 					
 				}
 
@@ -749,14 +750,15 @@ public class Path {
 
 	}
 
-	public static PathOverlap pathB_extends_or_contained_by_pathA_allowRepeats(List<Integer> pathB, 
+	public static PathOverlap pathB_extends_or_contained_by_pathA_allowRepeats(
+			List<Integer> pathB, 
 			List<Integer> pathA, 
 			HashSet<Integer> repeat_node_ids) {
 
 
 		int best_match_count = -1;
 
-		PathOverlap path_overlap = new PathOverlap(0,0);
+		PathOverlap path_overlap = null; 
 
 		
 		// we're not allowing cases where A is contained by B
@@ -792,7 +794,6 @@ public class Path {
 
 					}
 					else {
-
 						matches = -1;
 						break;
 					}
@@ -802,8 +803,9 @@ public class Path {
 
 				if (matches > best_match_count) {
 					best_match_count = matches;
-					path_overlap.match_length = overlap_len;
-					path_overlap.match_score = matches;
+					
+					path_overlap = new PathOverlap(pathA, pathB, i, 0, matches, overlap_len);
+					
 
 				}
 
