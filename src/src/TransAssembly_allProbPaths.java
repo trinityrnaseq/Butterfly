@@ -1878,6 +1878,15 @@ public class TransAssembly_allProbPaths {
 		
 		HashMap<Integer,Integer> node_in_path_counter = new HashMap<Integer,Integer>();
 		
+		
+		if (true) {
+			// need a better way to define dispersed repeat nodes
+			//FIXME: do this differently and more meaningfully
+			HashSet<Integer> repeat_nodes = new HashSet<Integer>();
+			return(repeat_nodes); // empty for now.
+		}
+		
+		
 		for (List<Integer> path : paths) {
 			HashSet<Integer> node_found = new HashSet<Integer>();
 			for (Integer node_id : path) {
@@ -3068,9 +3077,7 @@ public class TransAssembly_allProbPaths {
 				
 				
 				for (int i = po.idx_start_A, j = po.idx_start_B, m = 0;
-						m < po.match_length &&
-						i < path_A.size() &&
-						j < path_B.size() -1;
+						m < po.match_length;
 						i++,j++, m++) {
 
 					
