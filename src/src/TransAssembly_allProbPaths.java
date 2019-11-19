@@ -2536,7 +2536,17 @@ public class TransAssembly_allProbPaths {
 		
 		debugMes("\n# Link residual unique nodes", 10);
 		
-		
+		// draw the dot file for the path overlap graph:
+		if (GENERATE_MIDDLE_DOT_FILES) {
+			try {
+				writeDotFile(seqvertex_graph, FILE + "-pre-residual_linkage_zip_up.dot", "residual_linkage", false);
+			} catch (Exception e) {
+				// TODO Auto-generated catch block
+				e.printStackTrace();
+			}
+		}
+
+
 		List<SeqVertex> topo_sorted_vertices = TopologicalSort.topoSortSeqVerticesDAG(seqvertex_graph);
 		
 		Set<Set<SeqVertex>> comps = divideIntoComponents(seqvertex_graph);   //**** IMPORTANT: THIS HAPPENS AFTER UNROLLING REPEATS AND BEFORE FINAL LOOP BREAKING
@@ -2548,6 +2558,8 @@ public class TransAssembly_allProbPaths {
 		for (int i = 0; i < comps_list.size() - 1; i++) {
 			
 			HashMap<Integer,SeqVertex> unique_vertices_i = get_unique_vertices(seqvertex_graph, comps_list.get(i));
+			
+			boolean linked = false;
 			
 			for (int j = i + 1; j < comps_list.size(); j++) {
 				
@@ -2564,13 +2576,27 @@ public class TransAssembly_allProbPaths {
 						debugMes("\tmutual linkage of: " + vI  + " to " + vJ, 15 );
 						mutually_attach_preds_n_successors(seqvertex_graph, vI, vJ);
 						
-						
+						linked = true;
+						break;
 						
 					}
+					
+					
 				}
+				if (linked) break;
 			}
 		}
 		
+		
+		// draw the dot file for the path overlap graph:
+		if (GENERATE_MIDDLE_DOT_FILES) {
+			try {
+				writeDotFile(seqvertex_graph, FILE + "-post-residual_linkage_zip_up.dot", "residual_linkage", false);
+			} catch (Exception e) {
+				// TODO Auto-generated catch block
+				e.printStackTrace();
+			}
+		}
 		
 		return(seqvertex_graph);
 		
