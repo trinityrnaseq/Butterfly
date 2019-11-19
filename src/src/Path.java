@@ -751,8 +751,8 @@ public class Path {
 	}
 
 	public static PathOverlap pathB_extends_or_contained_by_pathA_allowRepeats(
-			List<Integer> pathB, 
 			List<Integer> pathA, 
+			List<Integer> pathB, 
 			HashSet<Integer> repeat_node_ids) {
 
 
@@ -776,6 +776,8 @@ public class Path {
 				int overlap_len = 0;
 
 
+				boolean A_contains_B = false;
+				
 				// have a first position match.  See if it extends to a complete match:
 				for (int pathB_pos=0, pathA_pos = i; 
 						pathA_pos < pathA.size() 
@@ -791,6 +793,8 @@ public class Path {
 							// dont count it if it's a repeat node.
 							matches++;
 						}
+						if (pathB_pos == pathB.size() - 1)
+							A_contains_B = true;
 
 					}
 					else {
@@ -805,6 +809,9 @@ public class Path {
 					best_match_count = matches;
 					
 					path_overlap = new PathOverlap(pathA, pathB, i, 0, matches, overlap_len);
+					if (A_contains_B) {
+						path_overlap.A_contains_B = true;
+					}
 					
 
 				}

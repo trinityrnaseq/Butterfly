@@ -120,6 +120,9 @@ public class TopologicalSort {
 			v.setNodeDepth(depth);
 		}
 
+		if (BFLY_GLOBALS.VERBOSE_LEVEL >= 10) {
+			System.err.println("TopologicalSort: DAG validates.");
+		}
 		
 		return(L);
 		

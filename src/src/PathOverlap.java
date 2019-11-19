@@ -13,6 +13,7 @@ public class PathOverlap {
 	int match_score;
 	int match_length;
 	
+	boolean A_contains_B = false;
 	
 	public PathOverlap(List<Integer> path_A, List<Integer> path_B, int idx_start_A, int idx_start_B, int score, int length) {
 		
@@ -32,7 +33,7 @@ public class PathOverlap {
 				", startA: " + idx_start_A + 
 				", startB: " + idx_start_B + 
 				", score: " + match_score +
-				", match_length: " + match_length;
+				", match_length: " + match_length + "\n";
 				
 		return(ret_text);
 		
