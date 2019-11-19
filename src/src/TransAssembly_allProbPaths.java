@@ -2789,7 +2789,7 @@ public class TransAssembly_allProbPaths {
 
 		// don't forget to zip up the bottom / terminal nodes where possible.
 		
-		count_total_zip_merged += zip_up_terminals(seqvertex_graph);
+		//count_total_zip_merged += zip_up_terminals(seqvertex_graph);
 
 		return(count_total_zip_merged);
 		
@@ -2826,7 +2826,7 @@ public class TransAssembly_allProbPaths {
 
 		}
 
-		count_total_zip_merged += zip_down_initials(seqvertex_graph);
+		//count_total_zip_merged += zip_down_initials(seqvertex_graph);
 		
 		return(count_total_zip_merged);
 
@@ -3903,11 +3903,9 @@ public class TransAssembly_allProbPaths {
 				
 				int extension_matches = path_overlap.match_score;
 				
-				if (extension_matches <= 0) {
-					continue;
-				}
 				
-				// i extends j
+				
+				
 				
 				// got a match.
 				String path_pair_token = get_path_compare_token(path_I, path_J);
@@ -3938,8 +3936,15 @@ public class TransAssembly_allProbPaths {
 				}
 				
 				
+				
+				// ----------------------
 				// edge retention logic:
 
+				if (extension_matches <= 0) {   // repeat-only matches are still stored as matches, but not as pair path links
+					continue;
+				}
+				
+				
 				if (! store_best_extension_match_only)  {
 					// add edge
 					best_extender_j_indices.add(j);
