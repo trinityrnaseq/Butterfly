@@ -1723,6 +1723,16 @@ public class TransAssembly_allProbPaths {
 		
 		
 		
+		
+		// ----- remove small / poor quality pairpath components
+		
+		Set<Set<Path>> path_overlap_graph_components = dividePathOverlapGraphIntoComponents(path_overlap_graph);
+		debugMes("Path overlap graph contains: " + path_overlap_graph_components.size() + " components.", 10);
+		
+		HashSet<Path> discarded_paths = new HashSet<Path>();
+		path_overlap_graph = remove_small_path_overlap_graph_subcomponents(path_overlap_graph_components, path_overlap_graph, 
+				   														   seqvertex_graph, discarded_paths);
+		
 		if (BFLY_GLOBALS.VERBOSE_LEVEL >= 15) {
 			// output the path node listing
 			for (Path p : path_overlap_graph.getVertices()) {
@@ -1784,7 +1794,8 @@ public class TransAssembly_allProbPaths {
 		combinedReadHash = update_PairPaths_using_overlapDAG_refined_paths(orig_path_to_updated_path, 
 				                                             			   pairPathToReadSupport, 
 				                                                           contained_path_to_containers,
-				                                                           contained_path_matches);
+				                                                           contained_path_matches,
+				                                                           discarded_paths);
 		
 		
 		
@@ -1792,6 +1803,73 @@ public class TransAssembly_allProbPaths {
 		
 		
 	}
+
+
+	private static DirectedSparseGraph<Path, SimplePathNodeEdge> remove_small_path_overlap_graph_subcomponents(
+			Set<Set<Path>> path_overlap_graph_components,
+			DirectedSparseGraph<Path, SimplePathNodeEdge> path_overlap_graph,
+			DirectedSparseGraph<SeqVertex, SimpleEdge> seqvertex_graph, 
+			HashSet<Path> discarded_paths) {
+		
+		
+		int num_components_removed = 0;
+		
+		Set<Set<Path>> components_to_remove = new HashSet<Set<Path>>();
+		
+		
+		int comp_id = 0;
+		for (Set<Path> pathset : path_overlap_graph_components) {
+			comp_id += 1;
+			
+			int component_unique_seq_len = 0;
+			
+			HashSet<Integer> node_seen = new HashSet<Integer>();
+			
+			for (Path p : pathset) {
+				int sum_seqlen = 0;
+				for (Integer node_id : p.get_vertex_list()) {
+					SeqVertex v = SeqVertex.retrieveSeqVertexByID(node_id);
+					if (v != null) {
+						sum_seqlen += v.getSeqKmerAdjLen();
+						
+						if (! node_seen.contains(node_id)) {
+							node_seen.add(node_id);
+							component_unique_seq_len += v.getSeqKmerAdjLen();
+						}
+						
+					}
+				}
+				debugMes("pcomponent:" + comp_id + ", " + p.getPathNodeID() + " path_seq_len: " + sum_seqlen + ", " + p.get_vertex_list(), 10);
+				
+			}
+			debugMes("-tot unique seq len for pcomponent: " + comp_id + " = " + component_unique_seq_len + "\n", 10);
+			
+			if (component_unique_seq_len < MIN_OUTPUT_SEQ - 25) {
+				num_components_removed += 1;
+				components_to_remove.add(pathset);
+			}
+			
+		}
+		
+		
+		debugMes("removed " + num_components_removed + " out of " + path_overlap_graph_components.size(), 10);
+		
+		
+		for (Set<Path> pathset : components_to_remove) {
+			for (Path p : pathset) {
+				
+				path_overlap_graph.removeVertex(p);
+				discarded_paths.add(p);
+			}
+		}
+		
+		
+		
+		return(path_overlap_graph);
+		
+	}
+
+
 
 
 	private static HashSet<SimplePathNodeEdge> addPairPathsToOverlapGraph(
@@ -1975,13 +2053,15 @@ public class TransAssembly_allProbPaths {
 			HashMap<Path, PathWithOrig> orig_path_to_updated_path,
 			Map<PairPath, Integer> pairPathToReadSupport, 
 			HashMap<List<Integer>, List<List<Integer>>> contained_path_to_containers, 
-			HashMap<Path, List<PathOverlap>> contained_path_matches) {
+			HashMap<Path, List<PathOverlap>> contained_path_matches,
+			HashSet<Path> discarded_paths) {
 	
 		
 		// get the old-to-new listing in List<Integer> format for use with PairPath objects
 		HashMap<List<Integer>,List<Integer>> old_to_new_path = new HashMap<List<Integer>,List<Integer>>();
 
 		for (Path orig_path : orig_path_to_updated_path.keySet()) {
+			
 			List<Integer> orig_path_list = orig_path.get_vertex_list();
 
 			List<Integer> updated_path_list = orig_path_to_updated_path.get(orig_path).getVertexList();
@@ -1998,6 +2078,11 @@ public class TransAssembly_allProbPaths {
 			contained_intlist_path_matches.put(p.get_vertex_list(), contained_path_matches.get(p));
 		}
 		
+		
+		HashSet<List<Integer>> discarded_paths_intlist = new HashSet<List<Integer>>();
+		for (Path p : discarded_paths) {
+			discarded_paths_intlist.add(p.get_vertex_list());
+		}
 		
 		
 		
@@ -2027,9 +2112,9 @@ public class TransAssembly_allProbPaths {
 				p1_list.add(old_to_new_path.get(p1));
 				debugMes("remapping of p1: " + p1 + " mapped to SINGle location: "  + p1_list, 20);
 			}
-			else {
+			else if (! discarded_paths_intlist.contains(p1)) {
 				// might not be a unique path!! (eg. single original nodes now ending up in multiple places)
-				p1_list = get_all_possible_updated_path_mappings(p1, contained_intlist_path_matches, old_to_new_path);
+				p1_list = get_all_possible_updated_path_mappings(p1, contained_intlist_path_matches, old_to_new_path, discarded_paths_intlist);
 				
 				debugMes("remapping of p1: " + p1 + " mapped to MULTiple possible locations: "  + p1_list, 20);
 				
@@ -2044,8 +2129,8 @@ public class TransAssembly_allProbPaths {
 					p2_list.add(p2);
 					debugMes("remapping of p2: " + p2 + " mapped to SINGle location: "  + p2_list, 20);
 				}
-				else {
-					p2_list = get_all_possible_updated_path_mappings(p2, contained_intlist_path_matches, old_to_new_path);
+				else  if (! discarded_paths_intlist.contains(p2)) {
+					p2_list = get_all_possible_updated_path_mappings(p2, contained_intlist_path_matches, old_to_new_path, discarded_paths_intlist);
 					
 					debugMes("remapping of p2: " + p2 + " mapped to MULTiple possible locations: "  + p2_list, 20);
 				}
@@ -2186,7 +2271,8 @@ public class TransAssembly_allProbPaths {
 	private static List<List<Integer>> get_all_possible_updated_path_mappings(
 				List<Integer> p,
 				HashMap<List<Integer>, List<PathOverlap>> contained_intlist_path_matches, 
-				HashMap<List<Integer>, List<Integer>> old_to_new_path
+				HashMap<List<Integer>, List<Integer>> old_to_new_path, 
+				HashSet<List<Integer>> discarded_paths_intlist
 				) {
 		
 		// this should only be the case for those paths that are fully contained by other paths.
@@ -2200,6 +2286,9 @@ public class TransAssembly_allProbPaths {
 			throw new RuntimeException("Error, no path overlaps reported for " + p + ", given contained_intlist_path_matches: " + contained_intlist_path_matches);
 		}
 		
+		
+		boolean found_discarded_containment = false;
+		
 		for (PathOverlap po : path_overlaps) {
 			// sanity check.
 			if (! po.path_B.equals(p)) {
@@ -2207,6 +2296,11 @@ public class TransAssembly_allProbPaths {
 			}
 		
 			List<Integer> container_path = po.path_A;
+			if (discarded_paths_intlist.contains(container_path)) {
+				found_discarded_containment = true;
+				break;
+			}
+			
 			if (old_to_new_path.containsKey(container_path)) {
 				List<Integer> new_container_path = old_to_new_path.get(container_path);
 				List<Integer> new_path = new_container_path.subList(po.idx_start_A, po.idx_start_A + po.match_length);
@@ -2237,9 +2331,9 @@ public class TransAssembly_allProbPaths {
 		
 		
 		
-		if (all_path_mappings.isEmpty()) {
+		if (all_path_mappings.isEmpty() && ! found_discarded_containment) {
 		
-			throw new RuntimeException("Unable to remap read: " + p + " given path_containments: " + path_overlaps);
+			throw new RuntimeException("Unable to remap read: " + p + " given path_containments: " + path_overlaps + " and discarded path list:" + discarded_paths_intlist);
 		}
 		else {
 			return(all_path_mappings);
@@ -2305,28 +2399,31 @@ public class TransAssembly_allProbPaths {
 			
 		}
 		
-		
-		
+		// --------------------------------------------------------------
+		//  Initial seq vertex graph construction
 		// do a DFS-based graph reconstruction starting from a root node.
 		// Link up nodes between overlapping paths in the overlap graph
 		
 		SeqVertex.set_graph(seqvertex_graph);
 		
 		HashSet<Path> visited = new HashSet<Path>();
+		HashSet<Path> linked_to_parent = new HashSet<Path>();
+		HashSet<Path> linked_to_child = new HashSet<Path>();
 		
 		for (Path p : path_overlap_graph.getVertices()) {
 			
 			if (path_overlap_graph.getPredecessorCount(p) == 0) {
 				// root node.
 				DFS_add_path_to_graph(p, seqvertex_graph, path_overlap_graph, pathMatches, 
-						orig_path_to_SeqVertex_list, visited);
+						orig_path_to_SeqVertex_list, visited, linked_to_parent, linked_to_child);
 			}
 			
 		}
 		
 		
-
+		// ----------------
 		// before zippingUp
+		
 		if (createMiddleDotFiles)
 			try {
 				writeDotFile(seqvertex_graph, dot_file_prefix + "_before_zippingUpSeqVertexGraph.dot", graphName, false);
@@ -2341,20 +2438,27 @@ public class TransAssembly_allProbPaths {
 		}
 
 		
-		
-		
-		
-		
-		// -------------------------
-		// Zip Cycles
-		// -------------------------
+		// --------------------------------------------
+		// Initial Zip Cycles, condense each component
+		// --------------------------------------------
 		
 		
 		ZipMergeRounds (seqvertex_graph, dot_file_prefix + "-initzip", createMiddleDotFiles, graphName); 
 		
 		
-		seqvertex_graph = link_residual_unique_nodes(seqvertex_graph);
 		
+		
+		// ---------------------------------------------
+		// Linking residual nodes from other components
+		// ---------------------------------------------
+		
+		seqvertex_graph = link_residual_INTER_component_unique_nodes(seqvertex_graph);
+		
+		
+		
+		// --------------------------------
+		//  Zip post residual connections
+		// --------------------------------
 		
 		ZipMergeRounds (seqvertex_graph, dot_file_prefix + "postresidzip", createMiddleDotFiles, graphName); 
 		
@@ -2468,11 +2572,8 @@ public class TransAssembly_allProbPaths {
 
 				init_replacement_vertices(seqvertex_graph);
 
-				// ensure DAG 
-				topo_sorted_vertices = TopologicalSort.topoSortSeqVerticesDAG(seqvertex_graph);
-
-
-				count_zip_up_merged_in_round = zipper_collapse_DAG_zip_up(seqvertex_graph);
+				
+				count_zip_up_merged_in_round = zipper_collapse_DAG_zip_up(seqvertex_graph); //ensures DAG at start
 				sum_merged += count_zip_up_merged_in_round;
 
 				debugMes("Zip up merged: " + count_zip_up_merged_in_round + " nodes.", 10);
@@ -2502,10 +2603,7 @@ public class TransAssembly_allProbPaths {
 
 				init_replacement_vertices(seqvertex_graph);
 
-				// ensure DAG 
-				topo_sorted_vertices = TopologicalSort.topoSortSeqVerticesDAG(seqvertex_graph);
-
-				count_zip_down_merged_in_round = zipper_collapse_DAG_zip_down(seqvertex_graph);
+				count_zip_down_merged_in_round = zipper_collapse_DAG_zip_down(seqvertex_graph); // ensures DAG at start
 
 				sum_merged += count_zip_down_merged_in_round;
 
@@ -2522,6 +2620,8 @@ public class TransAssembly_allProbPaths {
 				}
 
 			}
+			
+			sum_merged += connect_residual_intracomponent_nodes(seqvertex_graph);
 
 		}
 
@@ -2530,7 +2630,50 @@ public class TransAssembly_allProbPaths {
 	}
 	
 	
-	private static DirectedSparseGraph<SeqVertex, SimpleEdge> link_residual_unique_nodes(
+	private static int connect_residual_intracomponent_nodes(
+			DirectedSparseGraph<SeqVertex, SimpleEdge> seqvertex_graph) {
+		
+		
+		TopologicalSort.topoSortSeqVerticesDAG(seqvertex_graph); // ensure dag
+		
+		Set<Set<SeqVertex>> comps = divideIntoComponents(seqvertex_graph);   
+		
+		
+		debugMes("# Connecting INTRA-component residual nodes: total number of components = " + comps.size(),10);
+	
+		int count_zip_merged = 0;
+		
+		
+		for (Set<SeqVertex> v_set : comps) {
+			
+			HashMap<Integer, List<SeqVertex>> orig_id_to_sv_list = new HashMap<Integer, List<SeqVertex>>();
+			
+			for (SeqVertex v : v_set) {
+				Integer orig_id = v.getOrigButterflyID();
+				if (! orig_id_to_sv_list.containsKey(orig_id)) {
+					orig_id_to_sv_list.put(orig_id, new ArrayList<SeqVertex>());
+				}
+				orig_id_to_sv_list.get(orig_id).add(v);
+			}
+			
+			
+			for (List<SeqVertex> sv_list : orig_id_to_sv_list.values()) {
+				if (sv_list.size() > 1) {
+					count_zip_merged += attempt_zip_merge_SeqVertices(new HashSet<SeqVertex>(sv_list), seqvertex_graph, "max");
+				}
+			}
+		}
+		
+		
+		return(count_zip_merged);
+		
+		
+	}
+
+
+
+
+	private static DirectedSparseGraph<SeqVertex, SimpleEdge> link_residual_INTER_component_unique_nodes(
 			DirectedSparseGraph<SeqVertex, SimpleEdge> seqvertex_graph) {
 		
 		
@@ -2547,46 +2690,65 @@ public class TransAssembly_allProbPaths {
 		}
 
 
-		List<SeqVertex> topo_sorted_vertices = TopologicalSort.topoSortSeqVerticesDAG(seqvertex_graph);
 		
-		Set<Set<SeqVertex>> comps = divideIntoComponents(seqvertex_graph);   //**** IMPORTANT: THIS HAPPENS AFTER UNROLLING REPEATS AND BEFORE FINAL LOOP BREAKING
+		
+		boolean found_linkage = true;
 
-		List<Set<SeqVertex>> comps_list = new ArrayList<Set<SeqVertex>> (comps);
-		
-		debugMes("# Link Residual Unique Nodes: total number of components = " + comps.size(),10);
-		
-		for (int i = 0; i < comps_list.size() - 1; i++) {
-			
-			HashMap<Integer,SeqVertex> unique_vertices_i = get_unique_vertices(seqvertex_graph, comps_list.get(i));
-			
-			boolean linked = false;
-			
-			for (int j = i + 1; j < comps_list.size(); j++) {
-				
-				HashMap<Integer,SeqVertex> unique_vertices_j = get_unique_vertices(seqvertex_graph, comps_list.get(j));
-				
-				// link up unique vertices found in both.
-				
-				for (Integer unique_orig_bfly_id : unique_vertices_j.keySet()) {
-					if (unique_vertices_i.containsKey(unique_orig_bfly_id)) {
-						// link them.
-						SeqVertex vI = unique_vertices_i.get(unique_orig_bfly_id);
-						SeqVertex vJ = unique_vertices_j.get(unique_orig_bfly_id);
-						
-						debugMes("\tmutual linkage of: " + vI  + " to " + vJ, 15 );
-						mutually_attach_preds_n_successors(seqvertex_graph, vI, vJ);
-						
-						linked = true;
-						break;
-						
+		while(found_linkage) {
+			found_linkage = false;
+
+			List<SeqVertex> topo_sorted_vertices = TopologicalSort.topoSortSeqVerticesDAG(seqvertex_graph);
+
+			Set<Set<SeqVertex>> comps = divideIntoComponents(seqvertex_graph);   
+
+			List<Set<SeqVertex>> comps_list = new ArrayList<Set<SeqVertex>> (comps);
+
+			debugMes("# Link Residual Unique Nodes: total number of components = " + comps.size(),10);
+
+			for (int i = 0; i < comps_list.size() - 1; i++) {
+
+				HashMap<Integer,SeqVertex> unique_vertices_i = get_unique_vertices(seqvertex_graph, comps_list.get(i));
+
+
+
+				for (int j = i + 1; j < comps_list.size(); j++) {
+
+					HashMap<Integer,SeqVertex> unique_vertices_j = get_unique_vertices(seqvertex_graph, comps_list.get(j));
+
+					// link up to a unique vertex found in both.
+
+					for (Integer unique_orig_bfly_id : unique_vertices_j.keySet()) {
+						if (unique_vertices_i.containsKey(unique_orig_bfly_id)) {
+							// link them.
+							SeqVertex vI = unique_vertices_i.get(unique_orig_bfly_id);
+							SeqVertex vJ = unique_vertices_j.get(unique_orig_bfly_id);
+
+							debugMes("\tmutual linkage of: " + vI  + " to " + vJ, 15 );
+							mutually_attach_preds_n_successors(seqvertex_graph, vI, vJ);
+
+							found_linkage = true;
+							break;
+
+						}
+
+						if (found_linkage) break; // break vertex search -  just need one link between i and j
+
 					}
 					
+					if (found_linkage) {
+						ZipMergeRounds (seqvertex_graph, FILE + "-interconnect-" + i + "-" + j, GENERATE_MIDDLE_DOT_FILES, "interconnect"); 
+						break; // break component j search
+					}
 					
 				}
-				if (linked) break;
+				
+				if (found_linkage) {
+					break; // break component i search
+					// start again with newly defined components.
+				}
 			}
+			
 		}
-		
 		
 		// draw the dot file for the path overlap graph:
 		if (GENERATE_MIDDLE_DOT_FILES) {
@@ -3074,7 +3236,8 @@ public class TransAssembly_allProbPaths {
 	
 	
 	private static int attempt_zip_merge_SeqVertices(HashSet<SeqVertex> pred_same_orig_id_set,
-			DirectedSparseGraph<SeqVertex, SimpleEdge> seqvertex_graph, String dir) {
+													 DirectedSparseGraph<SeqVertex, SimpleEdge> seqvertex_graph, 
+													 String dir) {
 	
 		debugMes("attempt_zip_merge_SeqVertices(" + pred_same_orig_id_set + ")", 15);
 		
@@ -3273,17 +3436,19 @@ public class TransAssembly_allProbPaths {
 			DirectedSparseGraph<Path, SimplePathNodeEdge> path_overlap_graph, 
 			HashMap<String, PathOverlap> pathMatches, 
 			HashMap<Path, List<SeqVertex>> orig_path_to_SeqVertex_list, 
-			HashSet<Path> visited) {
+			HashSet<Path> visited,
+			HashSet<Path> linked_to_parent,
+			HashSet<Path> linked_to_child) {
 	
 		
 		// note, this is run recursively starting from a root node.
 		
-		if (visited.contains(p)) {
-			// already done
-			return;
-		}
+		boolean local_debug = true;  // dots made and dag checked
 		
 		debugMes("\nDFS_path_to_graph: targeting: " + p, 15);
+		
+		if (visited.contains(p))
+			return;
 		
 		visited.add(p);
 		
@@ -3298,6 +3463,11 @@ public class TransAssembly_allProbPaths {
 		for (Path succ : path_overlap_graph.getSuccessors(p)) {
 			
 			debugMes("\n\tDFS_path_to_graph: from: " + p + " to succ: " + succ, 15);
+			
+			if ( linked_to_parent.contains(succ) && linked_to_child.contains(p) ) {
+				// already done
+				return;
+			}
 			
 			String pair_token = get_path_compare_token(p, succ);
 			PathOverlap po = pathMatches.get(pair_token);
@@ -3315,22 +3485,36 @@ public class TransAssembly_allProbPaths {
 				throw new RuntimeException("Error, pathA: " + path_A + " contains pathB " + path_B + " not allowed..."); // ------------ LADEDA ---------------
 				
 			}
-			
-			int match_len = po.match_length;
-			
+				
 			
 			// draw edge between curr last node and next node in the successor path
 			List<SeqVertex> curr_vertex_list = orig_path_to_SeqVertex_list.get(p);
 			List<SeqVertex> succ_vertex_list = orig_path_to_SeqVertex_list.get(succ);
 			
 			
-			boolean connect_all_matching_positions = true;
+			debugMes("-seqvertex dag-connecting pair paths, child: " + succ + " to parent: " + p, 10);
+
+
+			if (local_debug) {
+				try {
+					writeDotFile(seqvertex_graph, FILE + "_BEFORE_LINKING_PATHS.dot", "ladeda", false);
+				} catch (Exception e) {
+					// TODO Auto-generated catch block
+					e.printStackTrace();
+				}
+			}
+			
+			boolean connect_all_matching_positions = false; //true;
 			if (connect_all_matching_positions) {
 				
 				//  path_A    --------------->
 				//  path_B    ->                 contained
 				//  or
 				//                           --->  extended
+				
+				
+				
+				
 				
 				
 				for (int i = po.idx_start_A, j = po.idx_start_B, m = 0;
@@ -3390,13 +3574,30 @@ public class TransAssembly_allProbPaths {
 				
 			}
 
+			if(local_debug) {
+				try {
+					writeDotFile(seqvertex_graph, FILE + "_AFTER_LINKING_PATHS.dot", "ladeda", false);
+				} catch (Exception e) {
+					// TODO Auto-generated catch block
+					e.printStackTrace();
+				}
+
+				
+			}
+
+			TopologicalSort.topoSortSeqVerticesDAG(seqvertex_graph); // verify dag intact
+			
+			linked_to_child.add(p);
+			linked_to_parent.add(succ);
 			
 			DFS_add_path_to_graph(succ,
 					seqvertex_graph,
 					path_overlap_graph, 
 					pathMatches, 
 					orig_path_to_SeqVertex_list, 
-					visited);
+					visited,
+					linked_to_parent,
+					linked_to_child);
 			
 		}
 		
@@ -7831,6 +8032,11 @@ HashMap<List<Integer>, Pair<Integer>> transcripts = new HashMap<List<Integer>,Pa
 				
 				PasaVertex iJ = pasaVerticesSortedList.get(j);
 		
+				if (BFLY_GLOBALS.VERBOSE_LEVEL >= 10) {
+					System.err.flush();
+				
+					System.err.print("\r[" + i + "," + j + "]   ");
+				}
 				
 				if (iJ.pp.isCompatible(iV.pp)) {
 					// we know they overlap, share a node in common, and have no conflicts.
@@ -14566,6 +14772,32 @@ HashMap<List<Integer>, Pair<Integer>> transcripts = new HashMap<List<Integer>,Pa
 
 	}
 
+	
+	private static Set<Set<Path>> dividePathOverlapGraphIntoComponents(DirectedSparseGraph<Path, SimplePathNodeEdge> graph) 
+	{
+
+		WeakComponentClusterer<Path, SimplePathNodeEdge> compClus = new WeakComponentClusterer<Path, SimplePathNodeEdge>();
+		Set<Set<Path>> comps = compClus.transform(graph);
+		
+		int comp_counter = 0;
+		for (Set<Path> s : comps) {
+			debugMes("\nComponentDivision: " + comp_counter + " contains the following vertices:", 10);
+			for (Path p : s) {
+				debugMes("node_id: " + p.getPathNodeID() + "\t" + p.get_vertex_list(), 10);
+			}
+			comp_counter++;
+			
+		}
+		
+		return comps;
+
+	}
+	
+	
+	
+	
+	
+	
 	/**
 	 * connect the source node to each node with indegree=0,
 	 * connect each node with outdegree=0 to the target node 

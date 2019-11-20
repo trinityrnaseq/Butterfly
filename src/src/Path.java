@@ -500,7 +500,11 @@ public class Path {
 		Collections.sort(path_vertices, NodeDepthOrderer);
 		
 		if (BFLY_GLOBALS.VERBOSE_LEVEL >= 10) {
-			System.err.println("Sorted incoming path vertices: " + path_vertices);
+			System.err.println("Sorted incoming path vertices: \n\tBegin");
+			for (SeqVertex v : path_vertices) {
+				System.err.println(v);
+			}
+			System.err.println("\tEnd\n");
 		}
 		
 		List<Integer> reconstructed_transcript_path = new ArrayList<Integer>();
