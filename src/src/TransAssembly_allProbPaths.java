@@ -180,6 +180,8 @@ public class TransAssembly_allProbPaths {
 	
 	private static Boolean USE_DP_READ_TO_VERTEX_ALIGN = true;
 	
+	private static Integer LONG_READ_COUNT_VAL = 1000; // one long read is worth 1k short reads
+	
 
 	public static Comparator<SeqVertex> SeqVertexIDorderComparator = new Comparator<SeqVertex>() {
 
@@ -10647,6 +10649,8 @@ HashMap<List<Integer>, Pair<Integer>> transcripts = new HashMap<List<Integer>,Pa
 						ArrayList<String> nameList = (ArrayList<String>) LONG_READ_PATH_MAP.get(path);
 						nameList.add(name);
 					}
+					//augment score for long reads
+					combinedReadHash.get(firstV).put(path, counts + LONG_READ_COUNT_VAL  - 1); // adjusted for the 1 already added just above.
 				}
 
 
