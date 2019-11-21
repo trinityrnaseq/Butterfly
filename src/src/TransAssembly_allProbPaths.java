@@ -977,7 +977,7 @@ public class TransAssembly_allProbPaths {
 		}
 
 		
-		TopologicalSort.topoSortSeqVerticesDAG(seqvertex_graph); // expensive! 
+		TopologicalSort.topoSortSeqVerticesDAG(seqvertex_graph);  
 		
 		debugMes("SECTION\n======= Reorganize Read Pairings =========\n\n", 5);
 		dijkstraDis = new DijkstraDistance<SeqVertex, SimpleEdge>(seqvertex_graph, true);
@@ -1035,7 +1035,7 @@ public class TransAssembly_allProbPaths {
 
 		
 		if (createMiddleDotFiles)
-			writeDotFile(seqvertex_graph,file + "_final.Z.dot",graphName, false);
+			writeDotFile(seqvertex_graph, file + "_final.Z.dot", graphName, false);
 	
 		
 		////////////////////////////
@@ -1699,9 +1699,9 @@ public class TransAssembly_allProbPaths {
 		////////////////////////////
 		
 		
-		// build a graph of compatible paths.    //  ----------- LADEDA ---------  
+		// build a graph of compatible paths.    
 		List<Path> path_list = new ArrayList<Path>();
-		//for (List<Integer> p : noncontained_paths) {
+		
 		for (List<Integer> p : paths) {
 			path_list.add(new Path(p));
 		}
@@ -2463,9 +2463,18 @@ public class TransAssembly_allProbPaths {
 		ZipMergeRounds (seqvertex_graph, dot_file_prefix + "postresidzip", createMiddleDotFiles, graphName); 
 		
 		
+		if (GENERATE_MIDDLE_DOT_FILES) {
+			try {
+				writeDotFile(seqvertex_graph, FILE + "_DONE_ZIPPING.dot", "done_zipping", false);
+			} catch (Exception e) {
+				// TODO Auto-generated catch block
+				e.printStackTrace();
+			}
+		}
+		
 		////////////////////////////////
 		// DESTROY UNZIPPED DUP NODES
-		destroy_unzipped_duplicates_above(seqvertex_graph);	//FIXME: not sure this is still needed.
+		//destroy_unzipped_duplicates_above(seqvertex_graph);	//FIXME: not sure this is still needed.
 
 		
 		//  test again. :)
@@ -2515,6 +2524,9 @@ public class TransAssembly_allProbPaths {
 					throw new RuntimeException("Error, no new_id mapped from: " + id + ", in path: " + pwo);
 				}
 			}
+			
+			Path.ensure_connected_ordered_path_in_graph(new_path, seqvertex_graph);
+			
 			pwo.update_vertex_list(new_path);
 
 		}
@@ -3443,7 +3455,7 @@ public class TransAssembly_allProbPaths {
 		
 		// note, this is run recursively starting from a root node.
 		
-		boolean local_debug = true;  // dots made and dag checked
+		boolean local_debug = false; // true;  // dots made and dag checked
 		
 		debugMes("\nDFS_path_to_graph: targeting: " + p, 15);
 		

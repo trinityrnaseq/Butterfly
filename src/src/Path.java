@@ -846,4 +846,23 @@ public class Path {
 		
 	}
 
+	public static void ensure_connected_ordered_path_in_graph(List<Integer> path_intlist,
+			DirectedSparseGraph<SeqVertex, SimpleEdge> seqvertex_graph) {
+		
+		for (int i = 0; i < path_intlist.size() - 1; i++) {
+			SeqVertex prev_v = SeqVertex.retrieveSeqVertexByID(path_intlist.get(i));
+			SeqVertex next_v = SeqVertex.retrieveSeqVertexByID(path_intlist.get(i+1));
+			
+			if (! seqvertex_graph.isPredecessor(next_v, prev_v)) {
+				throw new RuntimeException("Error, in path: " + path_intlist + ", nodes " + prev_v + " and " + next_v + " are not directly connected");
+			}
+		}
+		
+		
+		
+		
+		
+		
+	}
+
 }
