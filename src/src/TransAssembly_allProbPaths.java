@@ -181,6 +181,7 @@ public class TransAssembly_allProbPaths {
 	private static Boolean USE_DP_READ_TO_VERTEX_ALIGN = true;
 	
 	private static Integer LONG_READ_COUNT_VAL = 1000; // one long read is worth 1k short reads
+	private static Integer MAX_PAIRPATHS_ALLOWED = 10000;
 	
 
 	public static Comparator<SeqVertex> SeqVertexIDorderComparator = new Comparator<SeqVertex>() {
@@ -4064,6 +4065,8 @@ public class TransAssembly_allProbPaths {
 		
 		// draw an edge between each pathNode A -> B where B extends or is contained by A
 		
+		debugMes("-constructing path overlap graph based on " + path_list.size() + " paths ", 10);
+		
 		DirectedSparseGraph<Path, SimplePathNodeEdge> path_overlap_graph = new DirectedSparseGraph<Path, SimplePathNodeEdge>();
 		
 		for (Path p : path_list) {
@@ -4072,6 +4075,7 @@ public class TransAssembly_allProbPaths {
 			}
 		}
 		
+		debugMes("-path overlap graph will involve " + path_overlap_graph.getVertexCount() + " non-contained paths", 10);
 		
 		// identify repeat nodes.
 		// dispersed
@@ -4115,6 +4119,12 @@ public class TransAssembly_allProbPaths {
 			for (int j = 0; j < path_list.size(); j++) {
 				
 				if (i==j) {continue;}
+				
+				if (BFLY_GLOBALS.VERBOSE_LEVEL >= 10 && ( j % 10 == 0 ) ) {
+					System.err.flush();
+					System.err.print("\r[" + i + "," + j + "]   ");
+				}
+				
 				
 				Path path_J = path_list.get(j);
 				
@@ -7818,7 +7828,7 @@ HashMap<List<Integer>, Pair<Integer>> transcripts = new HashMap<List<Integer>,Pa
 					// walk scored path list in reverse (from rend to lend)
 					for (int z = sp.pv_path.size() -1; z >= 0; z--) {
 						
-						if (BFLY_GLOBALS.VERBOSE_LEVEL >= 10) {
+						if (BFLY_GLOBALS.VERBOSE_LEVEL >= 10 && (j % 10 == 0) ) {
 							System.err.flush();
 							System.err.print("\r[" + i + "," + j + "," + sp_counter + "," + z +  "]       ");
 						}
@@ -8046,7 +8056,7 @@ HashMap<List<Integer>, Pair<Integer>> transcripts = new HashMap<List<Integer>,Pa
 				
 				PasaVertex iJ = pasaVerticesSortedList.get(j);
 		
-				if (BFLY_GLOBALS.VERBOSE_LEVEL >= 10) {
+				if (BFLY_GLOBALS.VERBOSE_LEVEL >= 10 && (j % 10 == 0)) {
 					System.err.flush();
 				
 					System.err.print("\r[" + i + "," + j + "]   ");
@@ -8943,6 +8953,7 @@ HashMap<List<Integer>, Pair<Integer>> transcripts = new HashMap<List<Integer>,Pa
 			if (pairPathArr[i].isEmpty())
 				continue;
 			
+			
 			//start comparisons to j where j starts at least at the same position as path i.
 			int j = i;
 			
@@ -9046,7 +9057,7 @@ HashMap<List<Integer>, Pair<Integer>> transcripts = new HashMap<List<Integer>,Pa
 			PairPath[] pairPathArr)
 	{
 		
-		debugMes("getPairPathDAG:", 10);
+		debugMes("getPairPathConsistencyDAG:", 10);
 		
 		boolean[][] dag = new boolean[pairPathArr.length][pairPathArr.length];
 		
@@ -9066,6 +9077,12 @@ HashMap<List<Integer>, Pair<Integer>> transcripts = new HashMap<List<Integer>,Pa
 			 
 			for (int j = i + 1; j < pairPathArr.length; j++)
 			{
+				
+				if (BFLY_GLOBALS.VERBOSE_LEVEL >= 10 && (j % 10 == 0) ) {
+					System.err.flush();
+					System.err.print("\r[" + i + "," + j + "]    ");
+				}
+				
 				
 				PairPath pp_j = pairPathArr[j];
 				
@@ -9118,7 +9135,7 @@ HashMap<List<Integer>, Pair<Integer>> transcripts = new HashMap<List<Integer>,Pa
 			PasaVertex[] pasaVerticesSortedArr)
 	{
 		
-		debugMes("getPairPathDAG:", 10);
+		debugMes("getPASA_PairPathConsistencyDAG:", 10);
 		
 		boolean[][] dag = new boolean[pasaVerticesSortedArr.length][pasaVerticesSortedArr.length];
 		
@@ -9138,6 +9155,12 @@ HashMap<List<Integer>, Pair<Integer>> transcripts = new HashMap<List<Integer>,Pa
 			 
 			for (int j = i + 1; j < pasaVerticesSortedArr.length; j++)
 			{
+				
+				
+				if (BFLY_GLOBALS.VERBOSE_LEVEL >= 10 && (j % 10 == 0) ) {
+					System.err.flush();
+					System.err.print("\r[" + i + "," + j + "]    ");
+				}
 				
 				PairPath pp_j = pasaVerticesSortedArr[j].pp;
 				
@@ -9805,6 +9828,17 @@ HashMap<List<Integer>, Pair<Integer>> transcripts = new HashMap<List<Integer>,Pa
 			Map<PairPath, Integer> pairPathToReadSupport) {
 		
 		
+		
+		if (! MAKE_PE_SE) {
+			// see if the number of pair paths is too great and we need to punt here.
+			int num_total_pairpaths = count_num_total_pairpaths(combinedReadHash);
+			if (num_total_pairpaths > MAX_PAIRPATHS_ALLOWED) {
+				debugMes("# Too many pairpaths found: " + num_total_pairpaths + ", so running as SE instead of PE now.", 10);
+				MAKE_PE_SE = true;
+			}
+		}
+		
+		
 		for(Integer i : combinedReadHash.keySet())
 		{
 			Set<PairPath> temp = combinedReadHash.get(i).keySet();
@@ -9862,6 +9896,26 @@ HashMap<List<Integer>, Pair<Integer>> transcripts = new HashMap<List<Integer>,Pa
 		
 		
 	}
+
+
+
+	private static int count_num_total_pairpaths(HashMap<Integer, HashMap<PairPath, Integer>> combinedReadHash) {
+		
+		int total_count = 0;
+		
+		for(Integer i : combinedReadHash.keySet())
+		{
+			total_count  += combinedReadHash.get(i).keySet().size();
+		}
+		
+		debugMes("Total count of pairpaths: " + total_count, 10);
+		
+		
+		return(total_count);
+		
+		
+	}
+
 
 
 
