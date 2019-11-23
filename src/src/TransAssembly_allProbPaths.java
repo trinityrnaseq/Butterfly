@@ -157,7 +157,7 @@ public class TransAssembly_allProbPaths {
 	
 	private static boolean pasaFlyUniqueOpt = false; // variation on PASA
 	
-	private static boolean ILLUSTRATE_FINAL_ASSEMBLIES = true;
+	private static boolean ILLUSTRATE_FINAL_ASSEMBLIES = false;
 	
 	private static boolean MAKE_PE_SE = false; 
 	
@@ -1271,7 +1271,7 @@ public class TransAssembly_allProbPaths {
         	}
         	
         	
-        	if ( BFLY_GLOBALS.VERBOSE_LEVEL >= 10) {
+        	if ( BFLY_GLOBALS.VERBOSE_LEVEL >= 10 && ILLUSTRATE_FINAL_ASSEMBLIES) {
         		debugMes("## ILLUSTRATING FINAL ASSEMBLIES", 10);
         		illustrateFinalPaths(FinalPaths_all, finalPathsToContainedReads);
         	}
