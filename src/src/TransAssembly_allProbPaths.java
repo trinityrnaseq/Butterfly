@@ -180,7 +180,7 @@ public class TransAssembly_allProbPaths {
 	
 	private static Boolean USE_DP_READ_TO_VERTEX_ALIGN = true;
 	
-	private static Integer LONG_READ_COUNT_VAL = 1000; // one long read is worth 1k short reads
+	private static Integer LONG_READ_COUNT_VAL = 100000; // one long read is worth 100k short reads - need to drive solution
 	private static Integer MAX_PAIRPATHS_ALLOWED = 10000;
 	
 
@@ -7259,8 +7259,13 @@ HashMap<List<Integer>, Pair<Integer>> transcripts = new HashMap<List<Integer>,Pa
 			List<PasaVertex> toRemove = new ArrayList<PasaVertex>();
 			for (PasaVertex pv : finalVertexPositions) {
 				
-				if (pv.pp.isCompatibleAndContainedBySinglePath(best_path_vertex_list))
+				if (pv.pp.isCompatibleAndContainedBySinglePath(best_path_vertex_list)) {
+					
+					debugMes("best path vertex: " + best_path_vertex_list + " is compatible and contains pv pp: " + pv.pp, 15);
 					toRemove.add(pv);
+				} else {
+					debugMes("best path vertex: " + best_path_vertex_list + " is **NOT** compatible with pv pp: " + pv.pp, 15);
+				}
 				
 			}
 			
