@@ -65,6 +65,8 @@ public class TransAssembly_allProbPaths {
 
 	private static int MIN_READ_SUPPORT_THR = 1;
 	private static int MIN_OUTPUT_SEQ;
+	
+	private static boolean ZEALOUS_DAG_VALIDATION = false;
 
 	
 	// pasafly params
@@ -1181,7 +1183,7 @@ public class TransAssembly_allProbPaths {
         		}
         		else if (pasaFlyOpt) {
 
-        			FinalPaths_all = pasafly(seqvertex_graph, componentReadHash, dijkstraDis);
+        			FinalPaths_all = pasafly_SALRAA(seqvertex_graph, componentReadHash, dijkstraDis);
 
         		}
         	}
@@ -2563,7 +2565,7 @@ public class TransAssembly_allProbPaths {
 				e.printStackTrace();
 			}
 
-
+		
 
 		int zip_round = 0;
 
@@ -2581,7 +2583,7 @@ public class TransAssembly_allProbPaths {
 
 				debugMes("\n\n## Round: " + zip_round + " Zipping up.", 10);
 
-				if (graph_contains_loops(seqvertex_graph)) {
+				if (ZEALOUS_DAG_VALIDATION && graph_contains_loops(seqvertex_graph)) {
 					throw new RuntimeException("Error, detected cycles in seqvertex_graph, so not a DAG as expected!");
 				}
 
@@ -2612,7 +2614,7 @@ public class TransAssembly_allProbPaths {
 				zip_round++;
 				debugMes("\n\n## Round: " + zip_round + " Zipping down.", 10);
 
-				if (graph_contains_loops(seqvertex_graph)) {
+				if (ZEALOUS_DAG_VALIDATION && graph_contains_loops(seqvertex_graph)) {
 					throw new RuntimeException("Error, detected cycles in seqvertex_graph, so not a DAG as expected!");
 				}
 
@@ -2640,6 +2642,7 @@ public class TransAssembly_allProbPaths {
 
 		}
 
+		
 		return(seqvertex_graph);
 
 	}
@@ -2970,7 +2973,7 @@ public class TransAssembly_allProbPaths {
 		// do bottom-up Zipping /////
 		/////////////////////////////
 
-		if (graph_contains_loops(seqvertex_graph)) {
+		if (ZEALOUS_DAG_VALIDATION && graph_contains_loops(seqvertex_graph)) {
 			throw new RuntimeException("Error, detected cycles in seqvertex_graph, so not a DAG as expected!");	
 		}
 
@@ -3012,7 +3015,7 @@ public class TransAssembly_allProbPaths {
 		/////////////////////////////////////
 
 
-		if (graph_contains_loops(seqvertex_graph)) {
+		if (ZEALOUS_DAG_VALIDATION && graph_contains_loops(seqvertex_graph)) {
 			throw new RuntimeException("Error, detected cycles in seqvertex_graph, so not a DAG as expected!");
 		}
 
@@ -3069,6 +3072,7 @@ public class TransAssembly_allProbPaths {
 			
 		}
 
+		debugMes("-begin attempt_zip_merge_SeqVertices rounds", 15);
 		
 		int count_zip_merged = 0;
 		
@@ -3102,7 +3106,7 @@ public class TransAssembly_allProbPaths {
 		
 		if (pred_list.size() <= 1) { return (0); } // v must have multiple parents to zip
 		
-		debugMes("## zip_up()", 15);
+		debugMes("## zip_up_terminals()", 15);
 		
 		// get list of parent nodes having the same original ID
 		HashMap<Integer,HashSet<SeqVertex>> pred_orig_id_to_vertex_list = new HashMap<Integer,HashSet<SeqVertex>>();
@@ -3212,7 +3216,7 @@ public class TransAssembly_allProbPaths {
 		if (child_list.size() <= 1) { return (0); } // v must have multiple children to zip
 		
 		
-		debugMes("##zip_down()", 15);
+		debugMes("##zip_down_initials()", 15);
 		
 		
 		// get list of children nodes having the same original ID
@@ -6966,7 +6970,7 @@ HashMap<List<Integer>, Pair<Integer>> transcripts = new HashMap<List<Integer>,Pa
 	//-------- PASAFLY -------------
 	//------------------------------
 
-	private static HashMap<List<Integer>, Pair<Integer>> pasafly(
+	private static HashMap<List<Integer>, Pair<Integer>> pasafly_SALRAA(
 			final DirectedSparseGraph<SeqVertex, SimpleEdge> graph,
 			HashMap<Integer, HashMap<PairPath, Integer>> componentReadHash,
 			DijkstraDistance<SeqVertex, SimpleEdge> dijkstraDis) {
