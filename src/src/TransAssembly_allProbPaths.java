@@ -2712,6 +2712,8 @@ public class TransAssembly_allProbPaths {
 		
 		boolean found_linkage = true;
 
+		int linkage_search_counter = 0;
+		
 		while(found_linkage) {
 			found_linkage = false;
 
@@ -2753,17 +2755,26 @@ public class TransAssembly_allProbPaths {
 
 					}
 					
-					if (found_linkage) {
+					/*
+					 * if (found_linkage) {
 						ZipMergeRounds (seqvertex_graph, FILE + "-interconnect-" + i + "-" + j, GENERATE_MIDDLE_DOT_FILES, "interconnect"); 
 						break; // break component j search
 					}
+					*/
 					
 				}
 				
+				/*
 				if (found_linkage) {
 					break; // break component i search
 					// start again with newly defined components.
 				}
+				*/
+			}
+			
+			if (found_linkage) {
+				linkage_search_counter += 1;
+				ZipMergeRounds (seqvertex_graph, FILE + "-unique-intercomponent-linakge-counter-" + linkage_search_counter, GENERATE_MIDDLE_DOT_FILES, "interconnect"); 
 			}
 			
 		}
