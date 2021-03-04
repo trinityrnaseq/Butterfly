@@ -957,5 +957,26 @@ public class SeqVertex {
 		return(node_seq.substring(0, _kmer_length));
 	}
 
+	
+	public Set<Integer> get_neighborhood_ids() {
+		
+		Set<Integer> ids = new HashSet<Integer>();
+		
+		ids.add(this.getID());
+		ids.add(this.getOrigButterflyID());
+		
+		for (SeqVertex p : _graph.getPredecessors(this) ) {
+			ids.add(p.getID());
+			ids.add(p.getOrigButterflyID());
+		}
+		
+		for (SeqVertex s  : _graph.getSuccessors(this)) {
+			ids.add(s.getID());
+			ids.add(s.getOrigButterflyID());
+		}
+		
+		return(ids);
+		
+	}
 
 }

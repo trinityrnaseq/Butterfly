@@ -2695,7 +2695,7 @@ public class TransAssembly_allProbPaths {
 			DirectedSparseGraph<SeqVertex, SimpleEdge> seqvertex_graph) {
 		
 		
-		debugMes("\n# Link residual unique nodes", 10);
+		debugMes("\n# Link residual INTER component unique nodes", 10);
 		
 		// draw the dot file for the path overlap graph:
 		if (GENERATE_MIDDLE_DOT_FILES) {
@@ -2722,14 +2722,25 @@ public class TransAssembly_allProbPaths {
 			Set<Set<SeqVertex>> comps = divideIntoComponents(seqvertex_graph);   
 
 			List<Set<SeqVertex>> comps_list = new ArrayList<Set<SeqVertex>> (comps);
+			
+			Set<Integer> linked_comps = new HashSet<Integer>();
+			
+			Set<Integer> vertex_ids_touched = new HashSet<Integer>();
 
-			debugMes("# Link Residual Unique Nodes: total number of components = " + comps.size(),10);
+			debugMes("# Link Residual INTER Component Unique Nodes: total number of components = " + comps.size(),10);
 
 			for (int i = 0; i < comps_list.size() - 1; i++) {
+				
+				
+				if (linked_comps.contains(i)) {
+					continue;
+				}
+				
+				boolean found_linkage_local = false;
 
 				HashMap<Integer,SeqVertex> unique_vertices_i = get_unique_vertices(seqvertex_graph, comps_list.get(i));
 
-
+				
 
 				for (int j = i + 1; j < comps_list.size(); j++) {
 
@@ -2743,20 +2754,43 @@ public class TransAssembly_allProbPaths {
 							SeqVertex vI = unique_vertices_i.get(unique_orig_bfly_id);
 							SeqVertex vJ = unique_vertices_j.get(unique_orig_bfly_id);
 
-							debugMes("\tmutual linkage of: " + vI  + " to " + vJ, 15 );
+							
+							// only explore those nodes that have untouched neighborhoods in this round.
+							Set<Integer> neighborhood = vI.get_neighborhood_ids();
+							neighborhood.addAll(vJ.get_neighborhood_ids());
+							
+							boolean neighborhood_invaded = false;
+							for (Integer id : neighborhood) {
+								if (vertex_ids_touched.contains(id)) {
+									neighborhood_invaded = true;
+									break;
+								}
+							}
+							if (neighborhood_invaded) {
+								debugMes("\tneighborhood invaded, temp skipping: " + vI  + " to " + vJ, 11 );
+								continue;
+							}
+							
+							debugMes("\t[" + i + "," + j + "] mutual linkage of: " + vI  + " to " + vJ, 11 );
 							mutually_attach_preds_n_successors(seqvertex_graph, vI, vJ);
-
+							
+							vertex_ids_touched.addAll(neighborhood);
+							
 							found_linkage = true;
+							found_linkage_local = true;
+							
+							linked_comps.add(j);
 							break;
 
 						}
-
-						if (found_linkage) break; // break vertex search -  just need one link between i and j
+						
+						if (found_linkage_local) break; // break vertex search -  just need one link between i and j
 
 					}
 					
+					
 					/*
-					 * if (found_linkage) {
+					if (found_linkage) {
 						ZipMergeRounds (seqvertex_graph, FILE + "-interconnect-" + i + "-" + j, GENERATE_MIDDLE_DOT_FILES, "interconnect"); 
 						break; // break component j search
 					}
@@ -2770,12 +2804,15 @@ public class TransAssembly_allProbPaths {
 					// start again with newly defined components.
 				}
 				*/
+				
 			}
+			
 			
 			if (found_linkage) {
 				linkage_search_counter += 1;
 				ZipMergeRounds (seqvertex_graph, FILE + "-unique-intercomponent-linakge-counter-" + linkage_search_counter, GENERATE_MIDDLE_DOT_FILES, "interconnect"); 
 			}
+			
 			
 		}
 		
@@ -3615,7 +3652,7 @@ public class TransAssembly_allProbPaths {
 				
 			}
 
-			TopologicalSort.topoSortSeqVerticesDAG(seqvertex_graph); // verify dag intact
+			// TopologicalSort.topoSortSeqVerticesDAG(seqvertex_graph); // verify dag intact
 			
 			linked_to_child.add(p);
 			linked_to_parent.add(succ);
@@ -3633,7 +3670,7 @@ public class TransAssembly_allProbPaths {
 		
 		
 		
-		
+		//TopologicalSort.topoSortSeqVerticesDAG(seqvertex_graph); // verify dag intact
 		
 		return;
 		
