@@ -35,6 +35,13 @@ import java.util.logging.Logger;
  * @version $Revision: 1.12 $
  */
 
+
+// for local testing:
+// javac -cp  ~GITHUB/TRINITY/Butterfly/src/src ~/GITHUB/TRINITY/Butterfly/src/src/NWalign.java
+// java -cp ~/GITHUB/TRINITY/Butterfly/src/src NWalign seq1.fa seq2.fa NB 1
+
+
+
 public final class NeedlemanWunschGotohBanded {
 
 	
@@ -193,8 +200,8 @@ public final class NeedlemanWunschGotohBanded {
         for (int i = 1, k = n; i < m; i++, k += n) { // for all rows
             v[0] = -o - (i - 1) * e;
             
-            int band_start = Math.max(1, i - half_band);
-            int band_end = Math.min(n, i + half_band);
+            int band_start = Math.max(1, i - half_band - 1);
+            int band_end = Math.min(n, i + half_band + 1);
             
             //System.out.println("i: " + i + ", half band: "  + half_band + ", band_start: " + band_start + ", band_end: " + band_end);
             
