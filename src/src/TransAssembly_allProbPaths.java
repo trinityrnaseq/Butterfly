@@ -1000,7 +1000,7 @@ public class TransAssembly_allProbPaths {
 
 		
 		
-		Set<Set<SeqVertex>> comps = divideIntoComponents(seqvertex_graph);   //**** IMPORTANT: THIS HAPPENS AFTER UNROLLING REPEATS AND BEFORE FINAL LOOP BREAKING
+		List<Set<SeqVertex>> comps = divideIntoComponents(seqvertex_graph);   //**** IMPORTANT: THIS HAPPENS AFTER UNROLLING REPEATS AND BEFORE FINAL LOOP BREAKING
 
 		debugMes("total number of components = "+comps.size(),10);
 		int compID = -1;
@@ -2374,6 +2374,29 @@ public class TransAssembly_allProbPaths {
 	}
 	
 	
+	private static List<SeqVertex> sort_SeqVertices_by_nodeID(Collection<SeqVertex> seq_vertex_collection) {
+		
+		List<SeqVertex> seq_vertices = new ArrayList<SeqVertex>(seq_vertex_collection);
+		
+		Collections.sort(seq_vertices, new Comparator<SeqVertex>() {
+
+			public int compare(SeqVertex a, SeqVertex b) {
+
+				String a_name = a.getName();
+				String b_name = b.getName();
+				
+				return(a_name.compareTo(b_name));
+			}
+
+		});
+
+		return(seq_vertices);
+		
+		
+	}
+	
+	
+	
 
 	private static HashMap<Path,PathWithOrig> convert_path_DAG_to_SeqVertex_DAG(
 			DirectedSparseGraph<Path, SimplePathNodeEdge> path_overlap_graph,
@@ -2686,7 +2709,7 @@ public class TransAssembly_allProbPaths {
 		
 		TopologicalSort.topoSortSeqVerticesDAG(seqvertex_graph); // ensure dag
 		
-		Set<Set<SeqVertex>> comps = divideIntoComponents(seqvertex_graph);   
+		List<Set<SeqVertex>> comps = divideIntoComponents(seqvertex_graph);   
 		
 		
 		debugMes("# Connecting INTRA-component residual nodes: total number of components = " + comps.size(),10);
@@ -2751,7 +2774,7 @@ public class TransAssembly_allProbPaths {
 
 			List<SeqVertex> topo_sorted_vertices = TopologicalSort.topoSortSeqVerticesDAG(seqvertex_graph);
 
-			Set<Set<SeqVertex>> comps = divideIntoComponents(seqvertex_graph);   
+			List<Set<SeqVertex>> comps = divideIntoComponents(seqvertex_graph);   
 
 			List<Set<SeqVertex>> comps_list = new ArrayList<Set<SeqVertex>> (comps);
 			
@@ -3559,8 +3582,9 @@ public class TransAssembly_allProbPaths {
 		
 		List<Integer> path_A = p.get_vertex_list();
 		
-		List<Path> p_successors = new ArrayList<Path>(path_overlap_graph.getSuccessors(p) );
+		//List<Path> p_successors = new ArrayList<Path>(path_overlap_graph.getSuccessors(p) );
 		
+		/*
 		Collections.sort(p_successors, 
 				new Comparator<Path>() {
 
@@ -3569,6 +3593,10 @@ public class TransAssembly_allProbPaths {
 			}
 			
 			});
+		
+		*/
+		
+		List<Path> p_successors = sort_PathNodes_by_nodeID(path_overlap_graph.getSuccessors(p) );
 		
 		for (Path succ : p_successors) {
 			
@@ -3598,8 +3626,8 @@ public class TransAssembly_allProbPaths {
 				
 			
 			// draw edge between curr last node and next node in the successor path
-			List<SeqVertex> curr_vertex_list = orig_path_to_SeqVertex_list.get(p);
-			List<SeqVertex> succ_vertex_list = orig_path_to_SeqVertex_list.get(succ);
+			List<SeqVertex> curr_vertex_list = sort_SeqVertices_by_nodeID(orig_path_to_SeqVertex_list.get(p));
+			List<SeqVertex> succ_vertex_list = sort_SeqVertices_by_nodeID(orig_path_to_SeqVertex_list.get(succ));
 			
 			
 			debugMes("-seqvertex dag-connecting pair paths, child: " + succ + " to parent: " + p, 10);
@@ -14871,7 +14899,7 @@ HashMap<List<Integer>, Pair<Integer>> transcripts = new HashMap<List<Integer>,Pa
 	private static void calcSubComponentsStats(
 			DirectedSparseGraph<SeqVertex, SimpleEdge> graph) {
 
-		Set<Set<SeqVertex>> comps = divideIntoComponents(graph);
+		List<Set<SeqVertex>> comps = divideIntoComponents(graph);
 		int numComp = comps.size();
 		for (Set<SeqVertex> comp : comps)
 		{
@@ -14925,15 +14953,25 @@ HashMap<List<Integer>, Pair<Integer>> transcripts = new HashMap<List<Integer>,Pa
 	 * @param graph
 	 * @return set of components
 	 */
-	private static Set<Set<SeqVertex>> divideIntoComponents(DirectedSparseGraph<SeqVertex, SimpleEdge> graph) 
+	private static List<Set<SeqVertex>> divideIntoComponents(DirectedSparseGraph<SeqVertex, SimpleEdge> graph) 
 	{
 
 		WeakComponentClusterer<SeqVertex, SimpleEdge> compClus = new WeakComponentClusterer<SeqVertex, SimpleEdge>();
-		Set<Set<SeqVertex>> comps = compClus.transform(graph);
+		Set<Set<SeqVertex>> comps_set = compClus.transform(graph);
+		
+		List<Set<SeqVertex>> comps = new ArrayList<Set<SeqVertex>>(comps_set);
+		
+		Collections.sort(comps,  new Comparator<Set<SeqVertex>>() {			
+			public int compare (Set<SeqVertex> a, Set<SeqVertex> b) {
+				return (Integer.compare(a.size(), b.size()));
+			}
+		});
+		
 		
 		int comp_counter = 0;
 		for (Set<SeqVertex> s : comps) {
 			debugMes("\nComponentDivision: " + comp_counter + " contains the following vertices:", 10);
+			List<SeqVertex> sorted_vertices = sort_SeqVertices_by_nodeID(s);
 			for (SeqVertex v : s) {
 				debugMes("node_id: " + v.getID(), 10);
 			}

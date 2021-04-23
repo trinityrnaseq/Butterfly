@@ -40,7 +40,7 @@ public class TopologicalSort {
 		// S ← Set of all nodes with no incoming edges
 		List<SeqVertex> S = new ArrayList<SeqVertex>();
 		
-		for (SeqVertex v : seqvertex_graph.getVertices()) {
+		for (SeqVertex v : sort_SeqVertices_by_nodeID(seqvertex_graph.getVertices())) {
 			if (seqvertex_graph.getPredecessorCount(v) == 0) {
 				S.add(v);
 			}
@@ -163,7 +163,7 @@ public class TopologicalSort {
 		// S ← Set of all nodes with no incoming edges
 		List<Path> S = new ArrayList<Path>();
 		
-		for (Path v : path_overlap_graph.getVertices()) {
+		for (Path v : sort_PathNodes_by_nodeID(path_overlap_graph.getVertices())) {
 			if (path_overlap_graph.getPredecessorCount(v) == 0) {
 				S.add(v);
 			}
@@ -270,5 +270,50 @@ public class TopologicalSort {
 	}		
 
 
+	
+	
+	
+private static List<Path> sort_PathNodes_by_nodeID(Collection<Path> paths_collection) {
+		
+		List<Path> paths = new ArrayList<Path>(paths_collection);
+		
+		Collections.sort(paths, new Comparator<Path>() {
+
+			public int compare(Path pathA, Path pathB) {
+
+				String pathA_name = pathA.getPathNodeID();
+				String pathB_name = pathB.getPathNodeID();
+				
+				return(pathA_name.compareTo(pathB_name));
+			}
+
+		});
+
+		return(paths);
+		
+		
+	}
+	
+	
+	private static List<SeqVertex> sort_SeqVertices_by_nodeID(Collection<SeqVertex> seq_vertex_collection) {
+		
+		List<SeqVertex> seq_vertices = new ArrayList<SeqVertex>(seq_vertex_collection);
+		
+		Collections.sort(seq_vertices, new Comparator<SeqVertex>() {
+
+			public int compare(SeqVertex a, SeqVertex b) {
+
+				String a_name = a.getName();
+				String b_name = b.getName();
+				
+				return(a_name.compareTo(b_name));
+			}
+
+		});
+
+		return(seq_vertices);
+		
+		
+	}
 
 }
