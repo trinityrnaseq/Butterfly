@@ -15,6 +15,7 @@ public class Path {
 	private static HashMap<String,Path> _pathNodeIndexer = new HashMap<String,Path>();
 	
 	int _tmp_score;
+	int _depth = -1;
 	
 	
 	public Path (List<Integer> path) {
@@ -863,6 +864,14 @@ public class Path {
 		
 		
 		
+	}
+	
+	public void setDepth(int depth) {
+		this._depth = depth;
+	}
+	
+	public int getDepth() {
+		return(this._depth);
 	}
 
 }

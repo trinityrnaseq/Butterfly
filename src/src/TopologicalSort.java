@@ -149,5 +149,126 @@ public class TopologicalSort {
 	
 	
 	
+	// -----------------------------
+	// now for path nodes
 	
+	
+	
+	public static List<Path> topoSortPathVerticesDAG(
+			DirectedSparseGraph<Path, SimplePathNodeEdge> path_overlap_graph) {
+		
+		//L ← Empty list that will contain the sorted elements
+		List<Path> L = new ArrayList<Path>();
+		
+		// S ← Set of all nodes with no incoming edges
+		List<Path> S = new ArrayList<Path>();
+		
+		for (Path v : path_overlap_graph.getVertices()) {
+			if (path_overlap_graph.getPredecessorCount(v) == 0) {
+				S.add(v);
+			}
+			
+			
+		}
+		
+		
+		/*
+		 * while S is non-empty do
+	    remove a node n from S
+	    add n to tail of L
+	    for each node m with an edge e from n to m do
+	        remove edge e from the graph
+	        if m has no other incoming edges then
+	            insert m into S
+		 */
+		
+		HashSet<SimplePathNodeEdge> edges_to_ignore = new HashSet<SimplePathNodeEdge>();
+		
+		
+		
+		// while S is non-empty do
+		while (! S.isEmpty()) {
+			// remove a node n from S
+			Path n = S.remove(0);
+			
+			// add n to tail of L
+			L.add(n);
+			
+			//for each node m with an edge e from n to m do
+			for (Path m : path_overlap_graph.getSuccessors(n)) {
+				SimplePathNodeEdge se = path_overlap_graph.findEdge(n, m);
+				
+				// remove edge e from the graph
+				edges_to_ignore.add(se);
+			
+			
+				// (determine num of parents still actively connected to m)
+				int num_remaining_connected_preds = get_num_remaining_connected_predecessors(path_overlap_graph, m, edges_to_ignore);
+				// if m has no other incoming edges then
+				if (num_remaining_connected_preds == 0) {
+					//insert m into S
+					S.add(m);
+				}
+			}
+
+			if (S.isEmpty()) {
+				for (Path v : path_overlap_graph.getVertices()) {
+					if ( (! L.contains(v)) ) {
+
+						int pred_count = path_overlap_graph.getPredecessorCount(v);
+						System.err.println("seq vertex " + v + " not selected yet and has pred count: " + pred_count);
+					}
+
+				}
+
+			}
+			
+			
+		}
+		
+		if (! edges_to_ignore.containsAll(path_overlap_graph.getEdges())) {
+			for (SimplePathNodeEdge e : path_overlap_graph.getEdges()) {
+				if (! edges_to_ignore.contains(e)) {
+					System.err.println("ERROR: after topo sort, still have edge unaccounted for: " + e);
+				}
+			}
+			throw new RuntimeException("Error, graph contains at least one cycle and is not a DAG!");
+		}
+
+		// assign node depths
+		int depth = -1;
+		for (Path v : L) {
+			depth++;
+			v.setDepth(depth);
+		}
+
+		if (BFLY_GLOBALS.VERBOSE_LEVEL >= 10) {
+			System.err.println("TopologicalSort: DAG validates.");
+		}
+		
+		return(L);
+		
+	}
+
+
+	private static int get_num_remaining_connected_predecessors(
+			DirectedSparseGraph<Path, SimplePathNodeEdge> path_overlap_graph,
+			Path m, HashSet<SimplePathNodeEdge> edges_to_ignore) {
+
+
+		int num_remaining_connected_preds = 0;
+		for (Path p : path_overlap_graph.getPredecessors(m)) {
+			SimplePathNodeEdge se2 = path_overlap_graph.findEdge(p, m);
+			if (! edges_to_ignore.contains(se2)) {
+				num_remaining_connected_preds++;
+			}
+		}
+
+
+		return(num_remaining_connected_preds);
+
+	}		
+
+
+
 }

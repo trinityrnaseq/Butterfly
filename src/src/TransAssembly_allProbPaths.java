@@ -1671,6 +1671,11 @@ public class TransAssembly_allProbPaths {
 					return(1);
 				}
 				else {
+					for (int i = 0; i < pathA.size(); i++) {
+						if (pathA.get(i) != pathB.get(i)) {
+							return(Integer.compare(pathA.get(i), pathB.get(i)));
+						}
+					}
 					return(0);
 				}
 			}
@@ -2346,6 +2351,29 @@ public class TransAssembly_allProbPaths {
 	}
 	
 	
+	
+	private static List<Path> sort_PathNodes_by_nodeID(Collection<Path> paths_collection) {
+		
+		List<Path> paths = new ArrayList<Path>(paths_collection);
+		
+		Collections.sort(paths, new Comparator<Path>() {
+
+			public int compare(Path pathA, Path pathB) {
+
+				String pathA_name = pathA.getPathNodeID();
+				String pathB_name = pathB.getPathNodeID();
+				
+				return(pathA_name.compareTo(pathB_name));
+			}
+
+		});
+
+		return(paths);
+		
+		
+	}
+	
+	
 
 	private static HashMap<Path,PathWithOrig> convert_path_DAG_to_SeqVertex_DAG(
 			DirectedSparseGraph<Path, SimplePathNodeEdge> path_overlap_graph,
@@ -2364,7 +2392,8 @@ public class TransAssembly_allProbPaths {
 		HashMap<Path,List<SeqVertex>> orig_path_to_SeqVertex_list = new HashMap<Path,List<SeqVertex>>();
 		HashMap<Path,PathWithOrig> orig_path_to_updated_path = new HashMap<Path,PathWithOrig>();
 		
-		for (Path p : path_overlap_graph.getVertices()) {
+		
+		for (Path p : sort_PathNodes_by_nodeID(path_overlap_graph.getVertices())) {
 			List<Integer> node_id_list = p.get_vertex_list();
 			List<SeqVertex> vertex_listing = new ArrayList<SeqVertex>();
 			List<Integer> new_node_id_list = new ArrayList<Integer>();
@@ -2415,7 +2444,10 @@ public class TransAssembly_allProbPaths {
 		HashSet<Path> linked_to_parent = new HashSet<Path>();
 		HashSet<Path> linked_to_child = new HashSet<Path>();
 		
-		for (Path p : path_overlap_graph.getVertices()) {
+		
+		List<Path> paths = TopologicalSort.topoSortPathVerticesDAG(path_overlap_graph);
+		
+		for (Path p : paths) {
 			
 			if (path_overlap_graph.getPredecessorCount(p) == 0) {
 				// root node.
@@ -3527,7 +3559,18 @@ public class TransAssembly_allProbPaths {
 		
 		List<Integer> path_A = p.get_vertex_list();
 		
-		for (Path succ : path_overlap_graph.getSuccessors(p)) {
+		List<Path> p_successors = new ArrayList<Path>(path_overlap_graph.getSuccessors(p) );
+		
+		Collections.sort(p_successors, 
+				new Comparator<Path>() {
+
+			public int compare(Path pathA, Path pathB) { 
+				return(Integer.compare(pathA.getDepth(),  pathB.getDepth()));
+			}
+			
+			});
+		
+		for (Path succ : p_successors) {
 			
 			debugMes("\n\tDFS_path_to_graph: from: " + p + " to succ: " + succ, 15);
 			
@@ -3903,7 +3946,10 @@ public class TransAssembly_allProbPaths {
 
 		// find all loops in the graph by seeing if, given edge v->v2, there is a path from v2 back to v
 
-		for (Path p : path_overlap_graph.getVertices()) {
+		
+		
+		
+		for (Path p : sort_PathNodes_by_nodeID(path_overlap_graph.getVertices())) {
 			for (Path s : path_overlap_graph.getSuccessors(p))
 			{
 				if (dp.getDistance(s, p)!=null) // there is a connection between p->s->....->p
@@ -4040,7 +4086,7 @@ public class TransAssembly_allProbPaths {
 			Path toVertex;
 
 			//for each edge decide it's color
-			for (Path vertex : path_overlap_graph.getVertices())
+			for (Path vertex : sort_PathNodes_by_nodeID(path_overlap_graph.getVertices()))
 			{ //go over all vertices
 
 				String verDesc = ""+vertex.getPathNodeID() +" [label=\"" + vertex.getPathNodeID() + "^" + vertex.get_vertex_list() + "\"]";
