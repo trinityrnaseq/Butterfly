@@ -3626,8 +3626,8 @@ public class TransAssembly_allProbPaths {
 				
 			
 			// draw edge between curr last node and next node in the successor path
-			List<SeqVertex> curr_vertex_list = sort_SeqVertices_by_nodeID(orig_path_to_SeqVertex_list.get(p));
-			List<SeqVertex> succ_vertex_list = sort_SeqVertices_by_nodeID(orig_path_to_SeqVertex_list.get(succ));
+			List<SeqVertex> curr_vertex_list = orig_path_to_SeqVertex_list.get(p);
+			List<SeqVertex> succ_vertex_list = orig_path_to_SeqVertex_list.get(succ);
 			
 			
 			debugMes("-seqvertex dag-connecting pair paths, child: " + succ + " to parent: " + p, 10);
@@ -3723,7 +3723,7 @@ public class TransAssembly_allProbPaths {
 				
 			}
 
-			// TopologicalSort.topoSortSeqVerticesDAG(seqvertex_graph); // verify dag intact
+			TopologicalSort.topoSortSeqVerticesDAG(seqvertex_graph); // verify dag intact
 			
 			linked_to_child.add(p);
 			linked_to_parent.add(succ);
@@ -3741,7 +3741,7 @@ public class TransAssembly_allProbPaths {
 		
 		
 		
-		//TopologicalSort.topoSortSeqVerticesDAG(seqvertex_graph); // verify dag intact
+		TopologicalSort.topoSortSeqVerticesDAG(seqvertex_graph); // verify dag intact
 		
 		return;
 		
