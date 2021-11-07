@@ -97,7 +97,7 @@ public class DijkstraDistanceWoVer<V, E> extends DijkstraDistance<V, E> {
 				{
 					if (!w.equals(verToExclude) && !sd.distances.containsKey(w))
 					{
-						double edge_weight = nev.transform(e).doubleValue();
+						double edge_weight = ((Number) nev.transform(e)).doubleValue();
 						if (edge_weight < 0)
 							throw new IllegalArgumentException("Edges weights must be non-negative");
 						double new_dist = v_dist + edge_weight;
