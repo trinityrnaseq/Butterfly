@@ -2770,6 +2770,7 @@ public class TransAssembly_allProbPaths {
 		int linkage_search_counter = 0;
 		
 		while(found_linkage) {
+			
 			found_linkage = false;
 
 			List<SeqVertex> topo_sorted_vertices = TopologicalSort.topoSortSeqVerticesDAG(seqvertex_graph);
@@ -2827,6 +2828,7 @@ public class TransAssembly_allProbPaths {
 							}
 							
 							debugMes("\t[" + i + "," + j + "] mutual linkage of: " + vI  + " to " + vJ, 11 );
+							
 							mutually_attach_preds_n_successors(seqvertex_graph, vI, vJ);
 							
 							vertex_ids_touched.addAll(neighborhood);
@@ -2844,6 +2846,8 @@ public class TransAssembly_allProbPaths {
 					}
 					
 					
+					if (found_linkage_local) break; // break vertex search -  just need one link between i and j
+					
 					/*
 					if (found_linkage) {
 						ZipMergeRounds (seqvertex_graph, FILE + "-interconnect-" + i + "-" + j, GENERATE_MIDDLE_DOT_FILES, "interconnect"); 
@@ -2851,7 +2855,7 @@ public class TransAssembly_allProbPaths {
 					}
 					*/
 					
-				}
+				} // end for j
 				
 				/*
 				if (found_linkage) {
@@ -2860,7 +2864,8 @@ public class TransAssembly_allProbPaths {
 				}
 				*/
 				
-			}
+				
+			} // end for i
 			
 			
 			if (found_linkage) {
@@ -2869,7 +2874,7 @@ public class TransAssembly_allProbPaths {
 			}
 			
 			
-		}
+		} // end of while(found_linkage)
 		
 		// draw the dot file for the path overlap graph:
 		if (GENERATE_MIDDLE_DOT_FILES) {
